@@ -466,7 +466,7 @@ function syContenu(){
     app:'Échéancier Pro',maj:new Date().toISOString(),
     seances:P.items.map(i=>({date:i.date,horaire:i.h,classe:CLASSES[i.cl].nom,activite:i.act,lieu:i.lieu,trimestre:i.tri,
       seance:i.n||null,total:i.total||null,thematique:i.titre||'',evaluation:!!i.eval,statut:statut(i),
-      raison:i.bloque&&!i.force?i.bloque.t:'',remarque:i.note||''})),
+      raison:i.bloque&&!i.force?i.bloque.t:i.statut==='annule'?i.motif:'',remarque:i.note||''})),
     etat:E},null,1);
 }
 function syAppliquer(texte){
@@ -552,6 +552,9 @@ function majPlan(cle,i,champ,val){
    CALCUL DU PLANNING
    ========================================================= */
 const triDe=(d,niv)=>{const t=E.tri[niv];return d<=t[0]?1:d<=t[1]?2:3};
+/* Blocages déjà prévus au calendrier de départ : ils ne décalent pas les évaluations.
+   Une sortie ou un voyage ajouté ensuite compte comme une séance annulée. */
+const STOP_PREVUS=new Set(EVENEMENTS().filter(e=>e.k==='stop').map(e=>e.id));
 let P=null;
 function calcule(){
   const parJour={};
@@ -583,6 +586,8 @@ function calcule(){
   for(const it of items){
     const st=etatS(it.id);
     it.statut=st.st||'';it.note=st.n||'';it.force=!!st.force;
+    it.motif=st.raison||'';
+    it.actPrevu=it.act;
     if(st.act){it.act=st.act;it.ponctuel=true}
     if(st.lieu!=null)it.lieu=st.lieu;
     it.actif=(!it.bloque||it.force)&&it.statut!=='annule';
@@ -590,6 +595,17 @@ function calcule(){
     if(!it.actif)continue;
     if(!cycles.has(it.cle))cycles.set(it.cle,{cle:it.cle,cl:it.cl,act:it.act,lst:[],annul:0});
     cycles.get(it.cle).lst.push(it);
+  }
+  /* Séances prévues de chaque activité, y compris celles annulées depuis */
+  const prevues=new Map();
+  for(const it of items){
+    if(it.extra||it.vc)continue;
+    const bloqueActif=it.bloque&&!it.force;
+    if(bloqueActif&&STOP_PREVUS.has(it.bloque.id))continue;
+    it.retiree=!!bloqueActif||it.statut==='annule'||!!it.ponctuel;
+    const k=it.cl+'|'+it.actPrevu;
+    if(!prevues.has(k))prevues.set(k,[]);
+    prevues.get(k).push(it);
   }
   for(const c of cycles.values()){
     c.lst.forEach((it,i)=>{it.n=i+1;it.total=c.lst.length});
@@ -609,11 +625,27 @@ function calcule(){
     }else{
       /* 2 évaluations par activité, la dernière dans la semaine qui précède
          celle de la fin de saisie des notes. Pas d'évaluation pour la vie de classe
-         ni pour une séance ponctuelle ou de rattrapage. */
+         ni pour une séance ponctuelle ou de rattrapage.
+         Si une séance prévue saute, les évaluations gardent leur numéro de séance et
+         passent donc aux dates suivantes, sans dépasser la fin de saisie des notes.
+         Une séance de rattrapage compense une séance annulée. */
       const finEval=ajoute(lundi(c.limite),-3);
-      c.lst.filter(i=>i.date<=finEval&&!i.extra&&!i.ponctuel&&!i.vc).slice(-2).forEach(i=>evals.add(i.n-1));
+      const base=(prevues.get(c.cle)||[]).filter(i=>i.date<=finEval);
+      let places=[base.length-2,base.length-1].filter(b=>b>=0).map(b=>{
+        const retirees=base.slice(0,b+1).filter(i=>i.retiree).length;
+        const ajouts=c.lst.filter(i=>i.extra&&i.date<=base[b].date).length;
+        return b+ajouts-Math.min(ajouts,retirees);
+      });
+      let maxi=-1;
+      c.lst.forEach((i,x)=>{if(i.date<=c.limite)maxi=x});
+      if(places.length&&places[places.length-1]>maxi){
+        c.comprime=true;
+        places=places.length===2?[maxi-1,maxi]:[maxi];
+      }
+      places.filter(p=>p>=0).forEach(p=>evals.add(p));
+      c.finEval=finEval;
     }
-    c.lst.forEach((it,i)=>{it.titre=(plan[i]&&plan[i].t)||'';it.eval=evals.has(i);it.apresLimite=it.date>c.limite;it.cycle=c});
+    c.lst.forEach((it,i)=>{it.titre=(plan[i]&&plan[i].t)||'';it.eval=evals.has(i);it.apresLimite=it.date>c.limite;it.decalee=!!(c.finEval&&it.eval&&it.date>c.finEval);it.cycle=c});
     c.fait=c.lst.filter(i=>i.statut==='fait').length;
     const suiv=c.lst.find(i=>i.statut!=='fait'&&i.date>=aujd);
     if(suiv)suiv.suivante=true;
@@ -656,7 +688,7 @@ function carte(it){
   if(bloqueActif||ann){
     return `<div class="seance off" style="--c:${cl.c}"><button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
       <div class="cl">${esc(cl.nom)}</div><div class="act">${esc(it.act)}</div>
-      <div class="raison">${bloqueActif?esc(it.bloque.t):'Séance annulée'}</div></button></div>`;
+      <div class="raison">${bloqueActif?esc(it.bloque.t):'Séance annulée'+(it.motif?' : '+esc(it.motif):'')}</div></button></div>`;
   }
   return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
@@ -748,7 +780,7 @@ function vEvals(){
     ...lim.filter(l=>V.evPassees||l.date>=a).map(l=>({d:l.date,o:1,l}))].sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:x.o-y.o);
   let h=`<div class="barre"><h2>Évaluations <span class="sous">${evals.filter(i=>i.date>=a).length} à venir · ${passees.filter(i=>i.statut==='fait').length} faites</span></h2>
     ${passees.length?`<button class="btn pousse" data-a="evpass">${V.evPassees?'Masquer':'Voir'} les passées (${passees.length})</button>`:''}</div>
-    <p class="remarque">Celles du T1 viennent de ton échéancier. Ensuite, chaque activité a 2 évaluations : la dernière tombe dans la semaine qui précède celle de la fin de saisie des notes. Si une séance est annulée, le calcul se refait. Pour changer une évaluation, ouvre la séance.</p>`;
+    <p class="remarque">Celles du T1 viennent de ton échéancier. Ensuite, chaque activité a 2 évaluations : la dernière tombe dans la semaine qui précède celle de la fin de saisie des notes. Si une séance est annulée, ou si tu ajoutes un voyage au calendrier, elles passent automatiquement aux séances suivantes, sans dépasser la fin de saisie. Pour changer une évaluation, ouvre la séance.</p>`;
   let mois='';
   for(const x of lignes){
     const m=x.d.slice(0,7);
@@ -757,7 +789,7 @@ function vEvals(){
     const i=x.i,cl=CLASSES[i.cl],dj=ecart(a,i.date);
     h+=`<button class="ligne ${i.apresLimite?'alerte':''}" data-a="ouvre" data-id="${esc(i.id)}" style="--c:${cl.c}">
       <span class="pastille"></span><span class="date">${court(i.date)}</span>
-      <span class="txt"><b>${esc(cl.nom)}</b> — ${esc(i.act)}<small>S${i.n}/${i.total}${i.titre&&!/^eval$/i.test(i.titre)?' · '+esc(i.titre):''} · ${esc(i.h)}${i.lieu?' · '+esc(i.lieu):''}${i.apresLimite?' · <span class="alerte-txt">après la fin de saisie ('+jj(i.cycle.limite)+')</span>':''}</small></span>
+      <span class="txt"><b>${esc(cl.nom)}</b> — ${esc(i.act)}<small>S${i.n}/${i.total}${i.titre&&!/^eval$/i.test(i.titre)?' · '+esc(i.titre):''} · ${esc(i.h)}${i.lieu?' · '+esc(i.lieu):''}${i.apresLimite?' · <span class="alerte-txt">après la fin de saisie ('+jj(i.cycle.limite)+')</span>':i.decalee?' · décalée, fin de saisie le '+jj(i.cycle.limite):''}</small></span>
       <span class="droite">${i.statut==='fait'?'✓ faite':dj<0?'pas cochée':dj===0?"aujourd'hui":dj===1?'demain':'dans '+dj+' j'}</span></button>`;
   }
   if(!lignes.length)h+='<p class="vide-msg">Aucune évaluation à afficher.</p>';
@@ -796,6 +828,7 @@ function vCal(){
       for(const e of evs.filter(e=>e.k==='vac'||e.k==='ferie'))
         if(e.k==='ferie'||d===e.d||d===d1||(i===0))lignes.push(`<span class="cal-l fort">${esc(e.t)}</span>`);
       for(const e of evs.filter(e=>e.k==='stop'))lignes.push(`<span class="cal-l c-stop">${esc(e.t)}</span>`);
+      for(const x of P.items.filter(i=>i.date===d&&i.statut==='annule'&&(!i.bloque||i.force)))lignes.push(`<span class="cal-l c-stop">Annulée ${esc(nomCourt(x.cl))}${x.motif?' : '+esc(x.motif):''}</span>`);
       for(const x of evalsDuJour(d))lignes.push(`<span class="cal-l c-eval">EVAL ${esc(nomCourt(x.cl))}</span>`);
       for(const e of evs.filter(e=>e.k==='info'))for(const t of e.t.split(' · '))lignes.push(`<span class="cal-l">${esc(t)}</span>`);
       const max=4,plus=lignes.length-max;
@@ -884,11 +917,34 @@ function fenSeance(id){
     h+=`<button class="interr" data-a="evtog" data-id="${esc(id)}" aria-pressed="${!!it.eval}"><span>Évaluation</span><span>${it.eval?'OUI':'non'}</span></button>`;
     if(it.cycle&&it.cycle.manuel)h+=`<p class="remarque">Évaluations de ce cycle choisies à la main. <button class="lien" data-a="evauto" data-id="${esc(id)}">Revenir au calcul automatique</button></p>`;
     if(it.apresLimite&&it.eval)h+=`<p class="remarque att">Cette date tombe après la fin de saisie des notes (${esc(long(it.cycle.limite))}).</p>`;
-  }else if(!it.actif)h+=`<p class="remarque">Cette séance ne compte plus dans le cycle : les contenus et les évaluations glissent sur les dates suivantes.</p>`;
+    if(it.eval&&it.cycle&&it.cycle.comprime)h+=`<p class="remarque att">Plus aucune séance disponible après celle-ci avant la fin de saisie (${esc(long(it.cycle.limite))}) : les évaluations sont sur les deux dernières dates possibles.</p>`;
+  }else if(!it.actif)h+=`<p class="remarque att"><b>Séance annulée${it.motif?' : '+esc(it.motif):''}.</b> Elle ne compte plus dans le cycle : les thématiques et les évaluations passent aux dates suivantes. Touche « À faire » pour la rétablir.</p>`;
   h+=`<p class="remarque"><button class="lien" data-a="actedit" data-id="${esc(id)}">✎ Modifier l'activité ou le lieu</button></p>`;
   h+=`<label class="champ">Remarque (matériel, absents…)<textarea data-c="note" data-id="${esc(id)}">${esc(it.note)}</textarea></label>
   <div class="actions">${it.actif&&it.n>1?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n-2].id)}">‹ S${it.n-1}</button>`:''}${it.actif&&it.n<it.total?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n].id)}">S${it.n+1} ›</button>`:''}${it.extra?`<button class="btn danger" data-a="suppx" data-id="${esc(id)}">Supprimer</button>`:''}${it.bloque&&it.force?`<button class="btn" data-a="force" data-id="${esc(id)}">Annuler le rétablissement</button>`:''}<button class="btn fort" data-a="ferme">Fermer</button></div>`;
   ouvreFen(h);
+}
+/* Annuler une séance en indiquant pourquoi */
+function fenAnnule(id){
+  calcule();
+  const it=P.byId.get(id);if(!it)return fermeFen();
+  const m=it.motif||'';
+  ouvreFen(`<h2>Annuler la séance</h2><p class="sous">${esc(CLASSES[it.cl].nom)} — ${esc(it.act)}<br>${esc(long(it.date))}</p>
+  <div class="cases" style="margin-bottom:12px">${['Voyage','Sortie','Absence','Autre'].map(x=>`<button class="btn" data-a="motif" data-v="${x==='Autre'?'':x}">${x}</button>`).join('')}</div>
+  <label class="champ">Motif<input id="a-motif" value="${esc(m)}" placeholder="Ex. : Voyage en Normandie" autocomplete="off"></label>
+  <p class="remarque">La thématique et les évaluations de cette activité passeront aux séances suivantes, sans dépasser la fin de saisie des notes.</p>
+  <div class="actions"><button class="btn" data-a="ouvre" data-id="${esc(id)}">Retour</button><button class="btn danger" data-a="annconf" data-id="${esc(id)}">Annuler la séance</button></div>`);
+}
+/* Indique ce qui a bougé après une annulation ou une modification du calendrier */
+function photoEvals(){calcule();const m={};P.cycles.forEach(c=>{m[c.cle]=c.lst.filter(i=>i.eval).map(i=>i.date).join()});return m}
+function annonceDecalage(avant,defaut){
+  const apres=photoEvals();
+  const ch=P.cycles.filter(c=>!c.vc&&avant[c.cle]!==undefined&&avant[c.cle]!==apres[c.cle]);
+  if(!ch.length){if(defaut)toast(defaut);return}
+  const c=ch[0],t=c.lst.filter(i=>i.eval).map(i=>court(i.date)).join(' et ');
+  let msg='Évaluations décalées — '+nomCourt(c.cl)+', '+c.act+' : '+t+(c.comprime?' (dernières dates possibles)':'');
+  if(ch.length>1)msg+=' · et '+(ch.length-1)+' autre'+(ch.length>2?'s':'')+' activité'+(ch.length>2?'s':'');
+  toast(msg);
 }
 const LIEUX_LISTE=()=>`<datalist id="m-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist>`;
 const ACTS_LISTE=()=>`<datalist id="m-acts">${[...new Set(E.slots.flatMap(s=>s.t.map(t=>t[0])))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
@@ -1003,9 +1059,17 @@ const ACT={
     majS(id,'st',etatS(id).st==='fait'?'':'fait');sauve();affiche(true);
   },
   st(b){
-    const id=b.dataset.id;
-    majS(id,'st',b.dataset.v);
-    sauve();fenSeance(id);affiche(true);
+    const id=b.dataset.id,v=b.dataset.v;
+    if(v==='annule'){fenAnnule(id);return}
+    const avant=photoEvals();
+    majS(id,'st',v);majS(id,'raison',null);
+    sauve();fenSeance(id);affiche(true);annonceDecalage(avant);
+  },
+  motif(b){const n=$('#a-motif');n.value=b.dataset.v;if(!b.dataset.v)n.focus()},
+  annconf(b){
+    const id=b.dataset.id,m=$('#a-motif').value.trim(),avant=photoEvals();
+    majS(id,'st','annule');majS(id,'raison',m);
+    sauve();fenSeance(id);affiche(true);annonceDecalage(avant,'Séance annulée. Les évaluations ne changent pas de date.');
   },
   evtog(b){
     const id=b.dataset.id,it=P.byId.get(id),c=it.cycle;
@@ -1074,13 +1138,15 @@ const ACT={
     const k=$('#e-k').value;
     if(k==='stop'&&!cl.length){toast('Coche au moins une classe.');return}
     const id=b.dataset.id;
+    const avant=photoEvals();
     if(id)Object.assign(E.events.find(x=>x.id===id),{t,d,f,k,cl,v:false});
     else E.events.push({id:'e'+(E.seq++),t,d,f,k,cl,v:false});
-    sauve();fermeFen();affiche(true);
+    sauve();fermeFen();affiche(true);annonceDecalage(avant);
   },
   evdel(b){
     if(!confirm('Supprimer cet événement du calendrier ?'))return;
-    E.events=E.events.filter(x=>x.id!==b.dataset.id);sauve();fermeFen();affiche(true);
+    const avant=photoEvals();
+    E.events=E.events.filter(x=>x.id!==b.dataset.id);sauve();fermeFen();affiche(true);annonceDecalage(avant);
   },
   exporte(){exporte()},
   syconnect(){
