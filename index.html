@@ -1,0 +1,996 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Échéancier Pro</title>
+<meta name="theme-color" content="#1f3a4d">
+<meta name="color-scheme" content="light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Échéancier Pro">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --fond:#f4f3ee; --carte:#fff; --encre:#1d2933; --doux:#5d6873; --ligne:#d9d6cc; --tete:#1f3a4d;
+  --fait:#1b7a4b; --eval:#a3162e; --retard:#b45309; --retard-fond:#fdf0dc; --lien:#14618f;
+  --t1:#e6a100; --t2:#0a94cc; --t3:#5f9e26;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--fond);color:var(--encre);font:16px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;overscroll-behavior-y:none}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0}
+h1,h2,h3,p{margin:0}
+header{position:sticky;top:0;z-index:20;background:var(--tete);color:#fff;padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
+nav{display:flex;gap:2px;align-items:stretch}
+nav button{flex:1 1 0;min-height:52px;font-weight:600;font-size:15px;color:#c9d6df;border-bottom:3px solid transparent;padding:0 4px}
+nav button[aria-current=page]{color:#fff;border-bottom-color:#ffc94d}
+nav button.reg{flex:0 0 56px;font-size:22px;position:relative}
+nav button.reg[data-sync=att]::after,nav button.reg[data-sync=err]::after{content:"";position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%;background:#ffb020}
+nav button.reg[data-sync=err]::after{background:#ff5a5a}
+main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));max-width:1400px;margin:0 auto}
+.barre{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.barre h2{font-size:20px;line-height:1.2}
+.barre .sous{color:var(--doux);font-size:14px;font-weight:400;display:block;margin-top:1px}
+.pousse{margin-left:auto}
+.btn{min-height:44px;padding:0 14px;border-radius:10px;background:var(--carte);border:1px solid var(--ligne);font-weight:600;font-size:15px;white-space:nowrap}
+.btn.fort{background:var(--tete);color:#fff;border-color:var(--tete)}
+.btn.danger{color:var(--eval);border-color:#e2b3bb}
+.btn.rond{width:44px;padding:0;font-size:22px;line-height:1}
+.bandeau{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--retard-fond);border:1px solid #efd3a6;padding:10px 12px;border-radius:12px;margin-bottom:12px}
+.bandeau .btn{min-height:40px}
+.bandeau p{flex:1 1 240px}
+
+/* Semaine */
+.semaine{display:grid;gap:10px;grid-template-columns:repeat(var(--cols),minmax(0,1fr));align-items:start}
+.jour h3{font-size:15px;padding:6px 8px;border-radius:8px;background:#e7e5dc;margin-bottom:8px}
+.jour.ajd h3{background:var(--tete);color:#fff}
+.puce{font-size:12.5px;color:var(--doux);padding:3px 2px;line-height:1.25}
+.puce b{color:var(--encre);font-weight:600}
+.conge{background:#dfe5ee;border-radius:10px;padding:14px 10px;text-align:center;font-weight:600;color:#37465a;margin-bottom:8px}
+.seance{display:flex;align-items:stretch;border-radius:12px;margin-bottom:8px;border:1px solid rgba(0,0,0,.09);overflow:hidden;background:var(--c)}
+.seance .corps{flex:1;min-width:0;text-align:left;padding:9px 4px 9px 11px;min-height:64px}
+.seance .cl{font-weight:700;font-size:15.5px}
+.seance .act{font-weight:600}
+.seance .contenu{font-size:14px;margin:1px 0}
+.seance .det{font-size:13px;color:#46525d}
+.seance .coche{flex:0 0 56px;display:flex;align-items:center;justify-content:center}
+.rond-ck{width:32px;height:32px;border-radius:50%;border:2px solid #65717c;background:#fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700}
+.seance.fait .rond-ck{background:var(--fait);border-color:var(--fait)}
+.seance.fait .corps{opacity:.72}
+.seance.retard{box-shadow:inset 4px 0 0 var(--retard)}
+.seance.retard .rond-ck{border-color:var(--retard)}
+.seance.off{background:#ececea}
+.seance.off .cl,.seance.off .act{text-decoration:line-through;color:#6c747b}
+.seance .raison{font-size:13px;color:#7a3d10;font-weight:600}
+.tag-eval{display:inline-block;background:var(--eval);color:#fff;font-size:11.5px;font-weight:800;padding:1px 6px;border-radius:5px;letter-spacing:.3px;vertical-align:1px}
+.tag-t{display:inline-block;font-size:11px;font-weight:800;color:#fff;padding:0 5px;border-radius:4px;vertical-align:1px}
+.t1{background:var(--t1)}.t2{background:var(--t2)}.t3{background:var(--t3)}
+@media (max-width:700px){.semaine{grid-template-columns:1fr}}
+
+/* Échéancier */
+.onglets{display:flex;gap:8px}
+.onglets button{min-height:44px;padding:0 16px;border-radius:10px;font-weight:700;background:var(--carte);border:2px solid var(--ligne)}
+.onglets button[aria-pressed=true]{color:#fff;border-color:transparent}
+.onglets button.t1{background:var(--t1)}.onglets button.t2{background:var(--t2)}.onglets button.t3{background:var(--t3)}
+.onglets button small{font-weight:500;margin-left:4px;font-size:12.5px}
+.tableau{overflow:auto;-webkit-overflow-scrolling:touch;background:var(--carte);border:1px solid var(--ligne);border-radius:12px;max-height:calc(100dvh - 190px)}
+table{border-collapse:separate;border-spacing:0}
+th,td{border-right:1px solid var(--ligne);border-bottom:1px solid var(--ligne);padding:0}
+thead th{position:sticky;top:0;background:#f0eee7;z-index:2;font-size:13px;padding:7px 0;min-width:108px}
+thead th:first-child{left:0;z-index:3;text-align:left;padding-left:10px}
+tbody th{position:sticky;left:0;z-index:1;text-align:left;padding:7px 10px;width:148px;min-width:148px;font-weight:400;background:var(--c)}
+tbody th b{display:block;font-size:14.5px}
+tbody th span{display:block;font-size:13.5px;font-weight:600}
+tbody th small{display:block;font-size:12px;color:#46525d}
+tbody td{background:var(--c);height:78px}
+td.vide{background:#faf9f6}
+.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;height:100%;min-height:78px;width:108px;padding:4px 5px;text-align:center;line-height:1.15;position:relative}
+.cell .tit{font-size:13px;font-weight:500}
+.cell .m{font-size:11px;color:#46525d}
+.cell .ajout-t{font-size:11.5px;color:#6b7680}
+.cell.sansdate{opacity:.65;font-style:italic}
+.cell.fait{background:rgba(27,122,75,.2)}
+.cell.fait .ok{color:var(--fait);font-weight:800;font-size:13px}
+.cell.retard{background:var(--retard-fond);box-shadow:inset 0 0 0 2px #e4a95b}
+.cell.ev .lab{background:var(--eval);color:#fff;font-size:10.5px;font-weight:800;padding:0 5px;border-radius:4px;margin-bottom:2px}
+.cell.suiv{box-shadow:inset 0 0 0 3px var(--tete)}
+.cell.autre{opacity:.5}
+.legende{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--doux);align-items:center}
+.legende i{display:inline-block;width:16px;height:16px;border-radius:4px;vertical-align:-3px;margin-right:4px;border:1px solid rgba(0,0,0,.15)}
+
+/* Listes */
+.mois{font-size:15px;font-weight:700;color:var(--doux);margin:18px 0 6px;text-transform:capitalize}
+.mois:first-child{margin-top:0}
+.ligne{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--carte);border:1px solid var(--ligne);border-radius:10px;padding:9px 12px;margin-bottom:6px;min-height:50px}
+.ligne .date{flex:0 0 96px;font-weight:600;font-size:14px}
+.ligne .txt{flex:1;min-width:0}
+.ligne .txt small{display:block;color:var(--doux);font-size:13px}
+.ligne .droite{font-size:13px;color:var(--doux);text-align:right;white-space:nowrap}
+.pastille{flex:0 0 12px;height:34px;border-radius:4px;background:var(--c)}
+.ligne.limite{background:#eef2f6;border-style:dashed}
+.ligne.alerte{border-color:var(--eval)}
+.alerte-txt{color:var(--eval);font-weight:700}
+.badge{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:20px;white-space:nowrap}
+.k-vac{background:#dfe5ee;color:#37465a}.k-ferie{background:#d6d6e8;color:#3c3a66}.k-stop{background:#fbe3c0;color:#7a3d10}.k-info{background:#ecebe4;color:#5d6873}
+.verif{background:#fff1a8;color:#6b5500}
+.vide-msg{color:var(--doux);padding:30px 10px;text-align:center}
+
+/* Fenêtre */
+.voile{position:fixed;inset:0;background:rgba(15,25,35,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.fen{background:var(--carte);border-radius:16px;width:100%;max-width:520px;max-height:calc(100dvh - 32px);overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.28)}
+.fen h2{font-size:20px;margin-bottom:2px}
+.fen .sous{color:var(--doux);margin-bottom:14px;font-size:14.5px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.seg button{min-height:50px;border-radius:10px;border:2px solid var(--ligne);font-weight:700;font-size:15px}
+.seg button[aria-pressed=true]{color:#fff;border-color:transparent}
+.seg .s-faire[aria-pressed=true]{background:#56626d}.seg .s-fait[aria-pressed=true]{background:var(--fait)}.seg .s-annule[aria-pressed=true]{background:var(--eval)}
+.champ{display:block;margin-bottom:12px;font-size:14px;font-weight:600}
+.champ input,.champ select,.champ textarea{display:block;width:100%;margin-top:4px;min-height:44px;padding:8px 10px;border:1px solid var(--ligne);border-radius:9px;background:#fff;font-weight:400;font-size:16px}
+.champ textarea{min-height:84px;resize:vertical}
+.interr{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:50px;width:100%;padding:0 12px;border:2px solid var(--ligne);border-radius:10px;font-weight:700;margin-bottom:12px}
+.interr[aria-pressed=true]{border-color:var(--eval);color:var(--eval);background:#fbeef0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:6px}
+.lien{color:var(--lien);font-size:14px;font-weight:600;min-height:36px}
+.cases{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-weight:400}
+.cases label{display:flex;align-items:center;gap:6px;min-height:40px;padding:0 10px;border:1px solid var(--ligne);border-radius:9px}
+.cases input{width:20px;height:20px;margin:0}
+.remarque{font-size:13.5px;color:var(--doux);margin-bottom:12px}
+.remarque.att{color:#7a3d10;background:var(--retard-fond);padding:8px 10px;border-radius:8px}
+
+/* Réglages */
+.bloc{background:var(--carte);border:1px solid var(--ligne);border-radius:12px;padding:14px;margin-bottom:14px}
+.bloc h3{font-size:16.5px;margin-bottom:4px}
+.bloc>p{font-size:14px;color:var(--doux);margin-bottom:10px}
+.g-tri{display:grid;grid-template-columns:52px repeat(3,minmax(0,1fr));gap:6px;align-items:center;font-size:14px}
+.g-tri b{font-size:13px}
+.g-tri input,.creneau input{width:100%;min-height:42px;padding:4px 6px;border:1px solid var(--ligne);border-radius:8px;background:#fff;font-size:15px;min-width:0}
+.creneau{border-top:1px solid var(--ligne);padding:10px 0}
+.creneau>b{display:block;font-size:14.5px;margin-bottom:6px}
+.creneau .l{display:grid;grid-template-columns:30px 1fr 1fr;gap:6px;align-items:center;margin-bottom:5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom));background:#1d2933;color:#fff;padding:11px 16px;border-radius:12px;z-index:70;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px);box-shadow:0 6px 24px rgba(0,0,0,.3)}
+.toast button{color:#ffd76b;font-weight:700;min-height:30px}
+</style>
+</head>
+<body>
+<header><nav id="nav"></nav></header>
+<main id="main"></main>
+<div id="couche"></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   DONNÉES DE DÉPART (modifiables ensuite dans l'application)
+   ========================================================= */
+const CLE = 'echeancier-pro-2026-27';
+const DEBUT = '2026-09-01';
+const CLASSES = {
+  '3Va': {nom:'3ème Varsovie', niv:3, c:'#CAEDFB'},
+  '3Vi': {nom:'3ème Vienne',   niv:3, c:'#CFEFC8'},
+  '4Be': {nom:'4ème Berlin',   niv:4, c:'#FFF0BF'},
+  '4Du': {nom:'4ème Dublin',   niv:4, c:'#FAE2D5'},
+  '5Pr': {nom:'5ème Prague',   niv:5, c:'#F2CEED'},
+  '6At': {nom:'6ème Athènes',  niv:6, c:'#E9E9E9'},
+};
+const ORDRE = Object.keys(CLASSES);
+const H1='8h15-10h05', H2='10h20-12h10', H3='14h40-16h45';
+const EXT='Extérieur', THI='Gymnase Thierry', OLY='Gymnase Olympie', PIS='Piscine', DOJ='Dojo';
+/* j : 1=lundi… 5=vendredi — p : null=chaque semaine, 1=semaine impaire (SI), 0=semaine paire (SP) */
+const CRENEAUX = () => [
+  {id:'ma1',j:2,h:H1,p:null,cl:'3Va',t:[['RV-Javelot',EXT],['Handball',THI],['Danse',OLY]]},
+  {id:'ma2',j:2,h:H2,p:null,cl:'3Vi',t:[['Handball',THI],['Danse',OLY],['RV-Javelot',EXT]]},
+  {id:'ma3',j:2,h:H3,p:null,cl:'5Pr',t:[['Gym',OLY],['Lutte',OLY],['Natation',PIS]]},
+  {id:'me1',j:3,h:H1,p:null,cl:'4Be',t:[['½ fond',EXT],['TdT',OLY],['Acro',OLY]]},
+  {id:'me2',j:3,h:H2,p:1,cl:'3Va',t:[['RV-Javelot',EXT],['R&B',EXT],['R&B',EXT]]},
+  {id:'me3',j:3,h:H2,p:0,cl:'3Vi',t:[['R&B',EXT],['R&B',EXT],['RV-Javelot',EXT]]},
+  {id:'je1',j:4,h:H1,p:null,cl:'6At',t:[['Ultimate',THI],['Arts du cirque',OLY],['C.O',EXT]]},
+  {id:'je2',j:4,h:H2,p:null,cl:'4Du',t:[['½ fond',EXT],['Acro',DOJ],['TdT',OLY]]},
+  {id:'je3',j:4,h:H3,p:1,cl:'4Be',t:[['½ fond',EXT],['Sauvetage',PIS],['Sauvetage',PIS]]},
+  {id:'ve1',j:5,h:H1,p:null,cl:'6At',t:[['Biathlon',EXT],['Natation',PIS],['TdT',OLY]]},
+  {id:'ve2',j:5,h:H2,p:0,cl:'5Pr',t:[['Gym',OLY],['C.O',EXT],['C.O',EXT]]},
+  {id:'ve3',j:5,h:H3,p:0,cl:'4Du',t:[['½ fond',EXT],['Sauvetage',PIS],['Sauvetage',PIS]]},
+];
+/* Fin de chaque trimestre par niveau = date de fin de saisie des notes du calendrier */
+const TRIMESTRES = () => ({
+  6:['2026-11-18','2027-02-12','2027-06-09'],
+  5:['2026-11-18','2027-02-12','2027-06-02'],
+  4:['2026-11-25','2027-02-05','2027-06-02'],
+  3:['2026-11-25','2027-02-05','2027-05-26'],
+});
+const DERNIER_JOUR = '2027-06-22';
+const N3=[3], N6=[6];
+/* [début, fin|null, titre, type, niveaux concernés|null=tous, à vérifier]
+   type : vac=vacances, ferie=férié, stop=pas de cours, info=simple information */
+const EVENEMENTS = () => [
+['2026-09-01',0,'Rentrée 6°','stop',[3,4,5]],
+['2026-09-02',0,'Rentrée 5° / 4° / 3°','stop',[3,4,5]],
+['2026-09-05',0,"Accueil familles par l'APEL",'info'],
+['2026-09-10',0,'Réunion rentrée 6°/5° à 18h','info'],
+['2026-09-11',0,'Journée Olympiades 6°','stop',N6],
+['2026-09-15',0,'Réunion rentrée 4°/3° à 18h · Remise calculatrice 6° à 10h','info'],
+['2026-09-21',0,'Ouverture campagne délégués · Temps de rassemblement','info'],
+['2026-09-23',0,'Messe cathédrale 18h','info'],
+['2026-09-25','2026-09-27','Venue du Pape','info'],
+['2026-09-28',0,'Conseil pédagogique','info'],
+['2026-10-02',0,'Fin des campagnes délégués','info'],
+['2026-10-05',0,'Sortie 6° à Breteuil','stop',N6],
+['2026-10-05','2026-10-09','Élections délégués','info'],
+['2026-10-08',0,'Bilan mi-trimestriel PP 4°','info'],
+['2026-10-09',0,'CROSS','stop'],
+['2026-10-12',0,'Dictée ELA · Bilan mi-trimestriel PP 3°','info'],
+['2026-10-13',0,'Bilan mi-trimestriel PP 5°','info'],
+['2026-10-14',0,'Retenues','info'],
+['2026-10-15',0,'Réunion orientation (à confirmer) · Bilan mi-trimestriel PP 6° · Temps de rassemblement','info'],
+['2026-10-16',0,'Journée pédagogique','stop'],
+['2026-10-17','2026-11-01','Vacances de la Toussaint','vac'],
+['2026-11-03',0,'« 3° Vi » : pas de séance (note manuscrite)','stop',['3Vi'],1],
+['2026-11-10',0,'Temps de rassemblement','info'],
+['2026-11-11',0,'Armistice de 1918','ferie'],
+['2026-11-14',0,'Portes ouvertes 9h-12h · Remise DNB 14h','info'],
+['2026-11-17',0,'« 3° Vi » : pas de séance (note manuscrite)','stop',['3Vi'],1],
+['2026-11-18',0,'Fin saisie notes 1° TRIM 6°/5°','info'],
+['2026-11-20',0,'Fin appréciations 6°/5°','info'],
+['2026-11-24',0,'Conseil pédagogique','info'],
+['2026-11-25',0,"Fin saisie notes 1° TRIM 4°/3° · Nuit de l'orientation à Chartres · Retenues",'info'],
+['2026-11-26',0,'CC 6°/6°','info'],
+['2026-11-27',0,'Fin appréciations 4°/3°','info'],
+['2026-11-30',0,'CC 6°/5°','info'],
+['2026-12-01',0,'CC 5°/5° · Temps de prière','info'],
+['2026-12-03',0,'CC 4°/4°','info'],
+['2026-12-03','2026-12-04','Brevet Blanc 3°','stop',N3],
+['2026-12-07',0,'CC 4°/3° · Temps de prière','info'],
+['2026-12-08',0,'CC 3°/3°','info'],
+['2026-12-09',0,'Réunion Bulletins PP 6°/5° 13h-18h','info'],
+['2026-12-11',0,'Marché de Noël · Temps de rassemblement','info'],
+['2026-12-14','2026-12-18','Stage 3°','stop',N3],
+['2026-12-16',0,'Retenues','info'],
+['2026-12-17',0,'Temps de prière','info'],
+['2026-12-18',0,'Journée pédagogique (« ? » sur le calendrier)','stop',null,1],
+['2026-12-19','2027-01-03','Vacances de Noël','vac'],
+['2027-01-05',0,'Invitation à la galette 17h','info'],
+['2027-01-13',0,'Réunion Parents / Profs matières 8h-13h','stop',null,1],
+['2027-01-15',0,'Remise rapport stage 3°','info'],
+['2027-01-17','2027-01-22','Séjour SKI (classes à préciser)','info',null,1],
+['2027-01-18',0,'Journée médiévale','info'],
+['2027-01-20',0,'Retenues','info'],
+['2027-01-28',0,'Conseil pédagogique','info'],
+['2027-01-30','2027-01-31','Forum orientation à Chartres (à confirmer)','info'],
+['2027-02-05',0,'Fin saisie notes 2° TRIM 4°/3°','info'],
+['2027-02-09',0,'Mardi Gras - Carnaval','info'],
+['2027-02-10',0,'Soutenance stage','stop',N3,1],
+['2027-02-10',0,'Fin appréciations 4°/3°','info'],
+['2027-02-11',0,'Sortie Comédie Française 3°','stop',N3],
+['2027-02-12',0,'Fin saisie notes 2° TRIM 6°/5°','info'],
+['2027-02-15',0,'CC 3°/3°','info'],
+['2027-02-16',0,'CC 4°/3°','info'],
+['2027-02-17',0,'Fin appréciations 6°/5° · Retenues','info'],
+['2027-02-18',0,'CC 4°/4°','info'],
+['2027-02-20','2027-03-07',"Vacances d'hiver",'vac'],
+['2027-03-04',0,'Mi-Carême','info'],
+['2027-03-08',0,'CC 5°/5°','info'],
+['2027-03-09',0,'CC 5°/6°','info'],
+['2027-03-10',0,'Remise bulletins PP 4°/3° 13h-18h','info'],
+['2027-03-11',0,'CC 6°/6°','info'],
+['2027-03-15','2027-03-16','Brevet Blanc 4°/3°','stop',[3,4]],
+['2027-03-19',0,'Fête St Joseph · Portes ouvertes 17h-19h30','info'],
+['2027-03-29',0,'Lundi de Pâques','ferie'],
+['2027-03-30',0,'Bol de riz / Chaîne des boîtes','info'],
+['2027-04-05',0,'Conseil pédagogique','info'],
+['2027-04-07',0,'Retenues','info'],
+['2027-04-13',0,'Réunion Affelnet','info'],
+['2027-04-14','2027-04-16','Voyage en Normandie 3°','stop',N3],
+['2027-04-17','2027-05-02','Vacances de printemps','vac'],
+['2027-05-03',0,'Début des oraux','info'],
+['2027-05-03','2027-05-05','Séjour au Puy du Fou 6°','stop',N6],
+['2027-05-06',0,"Jeudi de l'Ascension",'ferie'],
+['2027-05-07','2027-05-09',"Pont de l'Ascension",'vac'],
+['2027-05-17',0,'Lundi de Pentecôte','ferie'],
+['2027-05-18',0,'Réunion Parents Vœux post 3°','info'],
+['2027-05-23',0,'Kermesse St Joseph','info'],
+['2027-05-25',0,'Conseil pédagogique','info'],
+['2027-05-26',0,'Fin saisie notes 3° TRIM 3° · Retenues','info'],
+['2027-05-28',0,'Fin appréciations 3°','info'],
+['2027-06-01',0,'CC 3°/3°','info'],
+['2027-06-02',0,'Fin saisie notes 3° TRIM 5°/4°','info'],
+['2027-06-03',0,'CC 3°','info'],
+['2027-06-04',0,'Fin appréciations 5°/4°','info'],
+['2027-06-08',0,'CC 4°/4°','info'],
+['2027-06-09',0,'Fin saisie notes 3° TRIM 6°','info'],
+['2027-06-10',0,'CC 4°/5°','info'],
+['2027-06-11',0,'Fin appréciations 6°','info'],
+['2027-06-14',0,'CC 5°/5°','info'],
+['2027-06-15',0,'ORAL DNB','stop',N3],
+['2027-06-15',0,'CC 6°/6°','info'],
+['2027-06-16',0,'Retenues','info'],
+['2027-06-17',0,'CC 6°','info'],
+['2027-06-18',0,'Journées des langues · Entraînements 3° (à confirmer)','info'],
+['2027-06-21',0,'Journées des langues','info'],
+['2027-06-22',0,"Journée de fin d'année",'stop'],
+['2027-06-23',0,'Constitution des classes 27/28','info'],
+['2027-06-24','2027-06-25','DNB','info'],
+['2027-06-28',0,'DNB','info'],
+['2027-07-02',0,'Journée pédagogique','info'],
+].map((e,i)=>({id:'e'+i,d:e[0],f:e[1]||e[0],t:e[2],k:e[3],
+  cl:e[4]?ORDRE.filter(c=>e[4].includes(CLASSES[c].niv)||e[4].includes(c)):ORDRE.slice(),v:!!e[5]}));
+/* Contenu prévu par numéro de séance (S1, S2…), repris du tableau Word.
+   « ! » devant le texte = évaluation ; texte vide = case vide. */
+const PLAN_T1 = {
+  '3Va|RV-Javelot':['Prise de perf 30m 1/2','Perf 2/2','Position départ','Transmission lente','Prise de marque 1/2','Prise de marque 2/2','!Eval RV 1/2','!Eval RV 2/2','','','!','!'],
+  '3Vi|Handball':['Eval diag','Parcours passes + zones','Statut A-D','Matchs + observ.','Attaque placée','!Eval ½ faite','!'],
+  '3Vi|R&B':['Test vma','Défi des 20','Transmission + semi'],
+  '4Be|½ fond':['Test vma','Défi des 25','Projet vitesse 1/2','Projet vitesse 2/2','Projet demi-fond 1/2','Projet demi-fond 2/2','Projet endurance 1/2','Projet endurance 2/2','Prépa eval','!Eval','!'],
+  '4Du|½ fond':['Test vma','Défi des 25','Projet vitesse 1/2','Projet vitesse 2/2','Projet demi-fond trail','Projet demi-fond 2/2','Projet endurance 1/2','Projet endurance 2/2','Séance pyramidale','Séance trail','Séance prépa eval','','!'],
+  '5Pr|Gym':['Mise en place + règles','Validation niveaux','Validation niveaux','Validation niveaux','Niveaux','Niveaux','Niveaux finis','Maintiens liaisons','Maintiens liaison fini','Création enchaînement','!','!'],
+  '6At|Biathlon':['Eval diag','Test vma','Lancers + défi','Course aux points par 2','!Eval 1 faite','!Eval'],
+  '6At|Ultimate':['Eval diag 1/2','Eval diag 2/2','Avancer zones','Zones passes + attaques','Statut A-D','Matchs type','Démarquage à faire','!EVAL 1 faite','!Eval'],
+};
+const PLAN = () => {const o={};for(const k in PLAN_T1)o[k]=PLAN_T1[k].map(s=>s?{t:s.replace(/^!/,''),e:s[0]==='!'}:null);return o};
+/* Cycles dont les évaluations sont fixées à la main (les autres sont calculées) */
+const EVAL_FIXE = () => {const o={};for(const k in PLAN_T1)if(PLAN_T1[k].some(s=>s[0]==='!'))o[k]=true;return o};
+
+/* =========================================================
+   OUTILS
+   ========================================================= */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const JOURS=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+const JOURS_L=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const MOIS_C=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+const pars=s=>{const[a,m,j]=s.split('-').map(Number);return new Date(a,m-1,j,12)};
+const fmt=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const ajoute=(s,n)=>{const d=pars(s);d.setDate(d.getDate()+n);return fmt(d)};
+const auj=()=>fmt(new Date());
+const dow=s=>{const x=pars(s).getDay();return x===0?7:x};
+const lundi=s=>ajoute(s,1-dow(s));
+function semaineISO(s){const d=pars(s);d.setDate(d.getDate()+4-(d.getDay()||7));const y=new Date(d.getFullYear(),0,1,12);return Math.ceil(((d-y)/864e5+1)/7)}
+const court=s=>{const d=pars(s);return JOURS[d.getDay()]+' '+d.getDate()+' '+MOIS_C[d.getMonth()]};
+const long=s=>{const d=pars(s);return JOURS_L[d.getDay()]+' '+d.getDate()+' '+MOIS[d.getMonth()]+' '+d.getFullYear()};
+const jj=s=>{const d=pars(s);return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')};
+const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
+
+/* =========================================================
+   ÉTAT
+   ========================================================= */
+function etatNeuf(){return {v:1,s:{},plan:PLAN(),evM:EVAL_FIXE(),extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+let E=etatNeuf();
+let lectureOK=true;
+try{
+  const b=localStorage.getItem(CLE);
+  if(b){const o=JSON.parse(b);if(o&&o.v===1)E=Object.assign(etatNeuf(),o)}
+}catch(e){lectureOK=false}
+function sauve(){
+  try{localStorage.setItem(CLE,JSON.stringify(E))}
+  catch(e){toast("Impossible d'enregistrer sur cet appareil. Fais une sauvegarde depuis les Réglages.")}
+  syMarque();
+}
+/* =========================================================
+   SYNCHRONISATION EN LIGNE (dépôt GitHub privé)
+   Le jeton reste dans le stockage de l'appareil : il n'est jamais
+   dans le code, dans le fichier envoyé ni dans les sauvegardes.
+   ========================================================= */
+const CLE_SYNC=CLE+'-sync', DEPOT='romeoprof/echeancier-pro-donnees', FICHIER='echeancier-pro.json';
+let SY={token:'',sha:null,sale:false,dernier:null};
+try{Object.assign(SY,JSON.parse(localStorage.getItem(CLE_SYNC)||'{}'))}catch(e){}
+let syGen=0,syTimer=null,syEnCours=false,syErreur='';
+function sySauve(){try{localStorage.setItem(CLE_SYNC,JSON.stringify(SY))}catch(e){}}
+function syMarque(){
+  if(!SY.token)return;
+  SY.sale=true;syGen++;sySauve();syPuce();
+  clearTimeout(syTimer);syTimer=setTimeout(syncNow,8000);
+}
+function syTexte(){
+  if(syErreur)return '⚠ '+syErreur;
+  if(!navigator.onLine)return SY.sale?'Hors connexion : modifications en attente, elles partiront dès le retour du réseau.':'Hors connexion.';
+  if(SY.sale)return 'Modifications en attente d’envoi…';
+  return SY.dernier?'✓ À jour en ligne (dernier envoi : '+court(fmt(new Date(SY.dernier)))+' à '+new Date(SY.dernier).toTimeString().slice(0,5)+').':'✓ Connecté.';
+}
+function syPuce(){
+  const b=document.querySelector('nav .reg');
+  if(b)b.dataset.sync=!SY.token?'':syErreur?'err':SY.sale?'att':'ok';
+  const n=document.getElementById('sync-etat');if(n)n.textContent=syTexte();
+}
+const ghUrl=()=>'https://api.github.com/repos/'+DEPOT+'/contents/'+FICHIER;
+const ghEntetes=()=>({Authorization:'Bearer '+SY.token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'});
+function b64enc(txt){const o=new TextEncoder().encode(txt);let s='';for(let i=0;i<o.length;i+=8192)s+=String.fromCharCode.apply(null,o.subarray(i,i+8192));return btoa(s)}
+function b64dec(b){const s=atob(b.replace(/\s/g,''));const o=new Uint8Array(s.length);for(let i=0;i<s.length;i++)o[i]=s.charCodeAt(i);return new TextDecoder().decode(o)}
+async function ghLire(){
+  const r=await fetch(ghUrl(),{headers:ghEntetes(),cache:'no-store'});
+  if(r.status===404)return null;
+  if(!r.ok)throw {code:r.status};
+  const j=await r.json();
+  return {sha:j.sha,texte:b64dec(j.content)};
+}
+async function ghEcrire(texte,sha){
+  const corps={message:'Mise à jour depuis Échéancier Pro',content:b64enc(texte)};
+  if(sha)corps.sha=sha;
+  const r=await fetch(ghUrl(),{method:'PUT',headers:Object.assign({'Content-Type':'application/json'},ghEntetes()),body:JSON.stringify(corps)});
+  if(!r.ok)throw {code:r.status};
+  return (await r.json()).content.sha;
+}
+/* Fichier lisible : la liste des séances calculées, puis l'état complet pour restaurer */
+function syContenu(){
+  calcule();
+  const statut=i=>i.bloque&&!i.force?'pas_de_cours':i.statut==='annule'?'annulee':i.statut==='fait'?'effectuee':'a_faire';
+  return JSON.stringify({
+    app:'Échéancier Pro',maj:new Date().toISOString(),
+    seances:P.items.map(i=>({date:i.date,horaire:i.h,classe:CLASSES[i.cl].nom,activite:i.act,lieu:i.lieu,trimestre:i.tri,
+      seance:i.n||null,total:i.total||null,thematique:i.titre||'',evaluation:!!i.eval,statut:statut(i),
+      raison:i.bloque&&!i.force?i.bloque.t:'',remarque:i.note||''})),
+    etat:E},null,1);
+}
+function syAppliquer(texte){
+  const o=JSON.parse(texte).etat;
+  if(!o||o.v!==1||!Array.isArray(o.events)||!Array.isArray(o.slots))throw {code:'format'};
+  E=Object.assign(etatNeuf(),o);
+  try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}
+  if(!document.querySelector('.voile')&&V.vue!=='reg')affiche(true);
+}
+function syMessage(e){
+  if(e&&(e.code===401))return 'Jeton refusé ou expiré : déconnecte puis entre un nouveau jeton.';
+  if(e&&(e.code===403||e.code===404))return 'Accès refusé au dépôt : vérifie les droits du jeton (Contents en lecture et écriture).';
+  if(e&&e.code==='format')return 'Le fichier en ligne est illisible : rien n’a été modifié ici.';
+  return '';
+}
+async function syncNow(){
+  if(!SY.token||!navigator.onLine||syEnCours)return;
+  syEnCours=true;clearTimeout(syTimer);
+  try{
+    let dist=await ghLire();
+    const ailleurs=dist&&SY.sha&&dist.sha!==SY.sha;
+    if(ailleurs&&!SY.sale){syAppliquer(dist.texte);SY.sha=dist.sha}
+    else if(SY.sale||!dist){
+      if(ailleurs)toast('Le fichier en ligne avait changé : cet appareil le remplace (l’ancienne version reste dans l’historique GitHub).');
+      const g=syGen;
+      try{SY.sha=await ghEcrire(syContenu(),dist&&dist.sha)}
+      catch(e){
+        if(e.code!==409&&e.code!==422)throw e;
+        dist=await ghLire();SY.sha=await ghEcrire(syContenu(),dist&&dist.sha);
+      }
+      if(g===syGen)SY.sale=false;
+      SY.dernier=new Date().toISOString();
+    }else if(dist)SY.sha=dist.sha;
+    syErreur='';
+  }catch(e){syErreur=syMessage(e)}
+  finally{
+    syEnCours=false;sySauve();syPuce();
+    if(SY.sale&&!syErreur){syTimer=setTimeout(syncNow,8000)}
+  }
+}
+async function syConnecter(jeton){
+  SY.token=jeton;
+  try{
+    const dist=await ghLire();
+    if(dist){
+      const d=(()=>{try{return JSON.parse(dist.texte).maj.slice(0,10)}catch(e){return null}})();
+      if(confirm('Des données existent déjà en ligne'+(d?' (du '+court(d)+')':'')+'.\n\nOK : les récupérer sur cet appareil.\nAnnuler : les remplacer par celles de cet appareil.')){
+        syAppliquer(dist.texte);SY.sale=false;
+      }else SY.sale=true;
+      SY.sha=dist.sha;
+    }else{SY.sha=null;SY.sale=true}
+    /* Vérifie aussi le droit d'écriture avant d'annoncer la connexion */
+    syErreur='';sySauve();await syncNow();
+    if(syErreur){const m=syErreur;SY.token='';SY.sha=null;SY.sale=false;syErreur='';sySauve();toast(m);affiche(true);return}
+    toast('Synchronisation activée.');affiche(true);
+  }catch(e){
+    const m=syMessage(e)||'Connexion impossible : vérifie le réseau et le jeton.';
+    SY.token='';sySauve();toast(m);affiche(true);
+  }
+}
+addEventListener('online',()=>{syErreur='';syPuce();syncNow()});
+addEventListener('offline',syPuce);
+setInterval(()=>{if(SY.sale&&!syErreur)syncNow()},60000);
+if(navigator.storage&&navigator.storage.persist){try{navigator.storage.persist()}catch(e){}}
+const etatS=id=>E.s[id]||{};
+function majS(id,champ,val){
+  const o=Object.assign({},E.s[id]);
+  if(val===''||val==null||val===false)delete o[champ];else o[champ]=val;
+  if(Object.keys(o).length)E.s[id]=o;else delete E.s[id];
+}
+function majPlan(cle,i,champ,val){
+  const a=E.plan[cle]||(E.plan[cle]=[]);
+  while(a.length<=i)a.push(null);
+  const o=Object.assign({t:'',e:false},a[i]);
+  o[champ]=val;
+  a[i]=(o.t||o.e)?o:null;
+}
+
+/* =========================================================
+   CALCUL DU PLANNING
+   ========================================================= */
+const triDe=(d,niv)=>{const t=E.tri[niv];return d<=t[0]?1:d<=t[1]?2:3};
+let P=null;
+function calcule(){
+  const parJour={};
+  for(const ev of E.events){
+    let d=ev.d,g=0;
+    while(d<=ev.f&&g++<400){(parJour[d]=parJour[d]||[]).push(ev);d=ajoute(d,1)}
+  }
+  const items=[];
+  for(let d=DEBUT;d<=E.fin;d=ajoute(d,1)){
+    const j=dow(d);if(j>5)continue;
+    const par=semaineISO(d)%2;
+    const evs=parJour[d]||[];
+    if(evs.some(e=>e.k==='vac'||e.k==='ferie'))continue;
+    for(const s of E.slots){
+      if(s.j!==j||(s.p!==null&&s.p!==par))continue;
+      const niv=CLASSES[s.cl].niv,tri=triDe(d,niv),a=s.t[tri-1];
+      if(!a||!a[0])continue;
+      const stop=evs.find(e=>e.k==='stop'&&e.cl.includes(s.cl));
+      items.push({id:d+'|'+s.id,date:d,cl:s.cl,act:a[0],lieu:a[1]||'',h:s.h,tri,p:s.p,bloque:stop||null});
+    }
+  }
+  for(const x of E.extras){
+    const niv=CLASSES[x.cl].niv;
+    items.push({id:x.id,date:x.date,cl:x.cl,act:x.act,lieu:x.lieu||'',h:x.h,tri:triDe(x.date,niv),p:null,extra:true,bloque:null});
+  }
+  const rangH=h=>[H1,H2,H3].indexOf(h);
+  items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:rangH(a.h)-rangH(b.h));
+  const cycles=new Map(),aujd=auj();
+  for(const it of items){
+    const st=etatS(it.id);
+    it.statut=st.st||'';it.note=st.n||'';it.force=!!st.force;
+    it.actif=(!it.bloque||it.force)&&it.statut!=='annule';
+    it.cle=it.cl+'|'+it.act;
+    if(!it.actif)continue;
+    if(!cycles.has(it.cle))cycles.set(it.cle,{cle:it.cle,cl:it.cl,act:it.act,lst:[],annul:0});
+    cycles.get(it.cle).lst.push(it);
+  }
+  for(const c of cycles.values()){
+    c.lst.forEach((it,i)=>{it.n=i+1;it.total=c.lst.length});
+    c.triMax=Math.max(...c.lst.map(i=>i.tri));
+    c.tris=new Set(c.lst.map(i=>i.tri));
+    c.limite=E.tri[CLASSES[c.cl].niv][c.triMax-1];
+    /* Contenus et évaluations suivent le numéro de séance :
+       si une séance est annulée, ils glissent sur la date suivante. */
+    const plan=E.plan[c.cle]||[];
+    c.plan=plan;
+    c.manuel=!!E.evM[c.cle];
+    const evals=new Set();
+    if(c.manuel){
+      plan.forEach((p,i)=>{if(p&&p.e)evals.add(i)});
+      let trop=[...evals].filter(i=>i>=c.lst.length).length;
+      for(let i=c.lst.length-1;i>=0&&trop>0;i--)if(!evals.has(i)){evals.add(i);trop--}
+    }else{
+      const cand=c.lst.filter(i=>i.date<=c.limite);
+      const reg=c.lst.filter(i=>!i.extra);
+      const nb=reg.length&&reg.every(i=>i.p!==null)?1:2;
+      cand.slice(-nb).forEach(i=>evals.add(i.n-1));
+    }
+    c.lst.forEach((it,i)=>{it.titre=(plan[i]&&plan[i].t)||'';it.eval=evals.has(i);it.apresLimite=it.date>c.limite;it.cycle=c});
+    c.fait=c.lst.filter(i=>i.statut==='fait').length;
+    const suiv=c.lst.find(i=>i.statut!=='fait'&&i.date>=aujd);
+    if(suiv)suiv.suivante=true;
+    c.lst.forEach(i=>{i.retard=i.statut!=='fait'&&i.date<aujd});
+  }
+  items.filter(i=>i.statut==='annule'&&(!i.bloque||i.force)).forEach(i=>{const c=cycles.get(i.cle);if(c)c.annul++});
+  P={items,cycles:[...cycles.values()],parJour,byId:new Map(items.map(i=>[i.id,i]))};
+  P.cycles.sort((a,b)=>ORDRE.indexOf(a.cl)-ORDRE.indexOf(b.cl)||(a.lst[0].date<b.lst[0].date?-1:1));
+  return P;
+}
+function enRetard(){return P.items.filter(i=>i.actif&&i.retard)}
+
+/* =========================================================
+   NAVIGATION ET AFFICHAGE
+   ========================================================= */
+const V={vue:'semaine',lundi:null,tri:null,evPassees:false,calPasse:false};
+function lundiDefaut(){const a=auj();const d=dow(a)>5?ajoute(lundi(a),7):lundi(a);return d<DEBUT?lundi(DEBUT):d}
+V.lundi=lundiDefaut();
+V.tri=(()=>{const a=auj();return a<='2026-11-25'?1:a<='2027-02-12'?2:3})();
+const ONGLETS=[['semaine','Semaine'],['ech','Échéancier'],['evals','Évaluations'],['cal','Calendrier'],['reg','⚙']];
+
+function affiche(garde){
+  calcule();
+  $('#nav').innerHTML=ONGLETS.map(([k,l])=>`<button data-a="vue" data-k="${k}" class="${k==='reg'?'reg':''}" ${k==='reg'?'aria-label="Réglages"':''} ${V.vue===k?'aria-current="page"':''}>${l}</button>`).join('');
+  syPuce();
+  const t=$('.tableau'),sx=t?t.scrollLeft:0,sy=t?t.scrollTop:0;
+  const y=window.scrollY;
+  $('#main').innerHTML=({semaine:vSemaine,ech:vEch,evals:vEvals,cal:vCal,reg:vReg})[V.vue]();
+  const t2=$('.tableau');
+  if(garde){if(t2){t2.scrollLeft=sx;t2.scrollTop=sy}window.scrollTo(0,y)}
+  else{
+    window.scrollTo(0,0);
+    if(t2){const s=t2.querySelector('.cell.suiv');if(s){t2.scrollLeft=Math.max(0,s.getBoundingClientRect().left-t2.getBoundingClientRect().left-220)}}
+  }
+}
+
+/* ---------- Semaine ---------- */
+function carte(it){
+  const cl=CLASSES[it.cl],bloqueActif=it.bloque&&!it.force,ann=it.statut==='annule';
+  if(bloqueActif||ann){
+    return `<div class="seance off" style="--c:${cl.c}"><button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
+      <div class="cl">${esc(cl.nom)}</div><div class="act">${esc(it.act)}</div>
+      <div class="raison">${bloqueActif?esc(it.bloque.t):'Séance annulée'}</div></button></div>`;
+  }
+  return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c}">
+    <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
+      <div class="cl">${esc(cl.nom)} ${it.eval?'<span class="tag-eval">EVAL</span>':''}</div>
+      <div class="act">${esc(it.act)} · S${it.n}/${it.total} <span class="tag-t t${it.tri}">T${it.tri}</span></div>
+      ${it.titre?`<div class="contenu">${esc(it.titre)}</div>`:''}
+      <div class="det">${esc(it.h)}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}${it.extra?' · rattrapage':''}</div>
+    </button>
+    <button class="coche" data-a="coche" data-id="${esc(it.id)}" aria-label="${it.statut==='fait'?'Marquer à faire':'Marquer effectuée'}"><span class="rond-ck">${it.statut==='fait'?'✓':''}</span></button>
+  </div>`;
+}
+function vSemaine(){
+  const l=V.lundi,sem=semaineISO(l),a=auj();
+  const jours=[0,1,2,3,4].map(i=>ajoute(l,i));
+  const its=P.items.filter(i=>i.date>=l&&i.date<=jours[4]);
+  const lundiUtile=its.some(i=>i.date===l)||(P.parJour[l]||[]).some(e=>e.k!=='info');
+  const montre=jours.filter((d,i)=>i>0||lundiUtile);
+  const ret=enRetard().length;
+  let h='';
+  if(ret)h+=`<div class="bandeau"><p><b>${ret} séance${ret>1?'s':''} passée${ret>1?'s':''}</b> pas encore cochée${ret>1?'s':''}.</p><button class="btn" data-a="toutfait">Tout marquer effectué</button></div>`;
+  h+=`<div class="barre">
+    <button class="btn rond" data-a="sem" data-n="-7" aria-label="Semaine précédente">‹</button>
+    <h2>Semaine ${sem} <span class="sous">${pars(l).getDate()} ${MOIS_C[pars(l).getMonth()]} – ${pars(jours[4]).getDate()} ${MOIS_C[pars(jours[4]).getMonth()]} · ${sem%2?'impaire (SI)':'paire (SP)'}</span></h2>
+    <button class="btn rond" data-a="sem" data-n="7" aria-label="Semaine suivante">›</button>
+    ${l!==lundiDefaut()?'<button class="btn" data-a="semauj">Cette semaine</button>':''}
+    <button class="btn pousse" data-a="ajout" data-date="${l<a&&a<=jours[4]?a:jours[1]}">＋ Séance</button></div>`;
+  h+=`<div class="semaine" style="--cols:${montre.length}">`;
+  for(const d of montre){
+    const evs=P.parJour[d]||[];
+    const conge=evs.find(e=>e.k==='vac'||e.k==='ferie');
+    const dj=pars(d);
+    h+=`<section class="jour ${d===a?'ajd':''}"><h3>${JOURS_L[dj.getDay()][0].toUpperCase()+JOURS_L[dj.getDay()].slice(1)} ${dj.getDate()}</h3>`;
+    if(conge)h+=`<div class="conge">${esc(conge.t)}</div>`;
+    const lst=its.filter(i=>i.date===d);
+    h+=lst.map(carte).join('');
+    const pu=evs.filter(e=>e.k==='info'||(e.k==='stop'&&!lst.some(i=>i.bloque===e)));
+    h+=pu.map(e=>`<div class="puce">• ${e.k==='stop'?'<b>'+esc(e.t)+'</b>':esc(e.t)}${e.v?' <span class="badge verif">à vérifier</span>':''}</div>`).join('');
+    h+='</section>';
+  }
+  return h+'</div>';
+}
+
+/* ---------- Échéancier (comme le tableau Word) ---------- */
+function vEch(){
+  const t=V.tri;
+  const cyc=P.cycles.filter(c=>c.tris.has(t));
+  const lgPlan=c=>{let n=c.plan.length;while(n>0&&!(c.plan[n-1]&&c.plan[n-1].t))n--;return n};
+  const max=cyc.reduce((m,c)=>Math.max(m,c.lst.length,lgPlan(c)),0);
+  let h=`<div class="barre"><div class="onglets">${[1,2,3].map(n=>{
+    const x=P.items.filter(i=>i.actif&&i.tri===n);
+    return `<button data-a="tri" data-n="${n}" aria-pressed="${t===n}" class="${t===n?'t'+n:''}">T${n}<small>${x.filter(i=>i.statut==='fait').length}/${x.length}</small></button>`}).join('')}</div>
+    <button class="btn pousse" data-a="ajout">＋ Séance</button></div>`;
+  if(!cyc.length)return h+'<p class="vide-msg">Aucune activité sur ce trimestre.</p>';
+  h+=`<div class="tableau"><table><thead><tr><th>Classe / activité</th>${Array.from({length:max},(_,i)=>`<th>S${i+1}</th>`).join('')}</tr></thead><tbody>`;
+  for(const c of cyc){
+    const cl=CLASSES[c.cl];
+    h+=`<tr style="--c:${cl.c}"><th><b>${esc(cl.nom)}</b><span>${esc(c.act)}</span><small>${c.fait}/${c.lst.length} faites${c.tris.size>1?' · sur '+[...c.tris].map(x=>'T'+x).join('+'):''}${c.annul?' · '+c.annul+' annulée'+(c.annul>1?'s':''):''}</small></th>`;
+    for(let i=0;i<max;i++){
+      const it=c.lst[i];
+      if(!it){
+        const reste=c.plan[i]&&c.plan[i].t;
+        h+=reste?`<td class="vide"><div class="cell sansdate"><span class="tit">${esc(reste)}</span><span class="m">pas de date</span></div></td>`:'<td class="vide"></td>';
+        continue;
+      }
+      const titre=it.titre&&!(it.eval&&/^eval$/i.test(it.titre))?it.titre:'';
+      h+=`<td><button class="cell ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''} ${it.eval?'ev':''} ${it.suivante?'suiv':''} ${it.tri!==t?'autre':''}" data-a="ouvre" data-id="${esc(it.id)}" aria-label="S${it.n}, ${esc(long(it.date))}">
+        <span class="m">${JOURS[pars(it.date).getDay()]} ${jj(it.date)}${it.statut==='fait'?' <span class="ok">✓</span>':''}</span>
+        ${it.eval?'<span class="lab">EVAL</span>':''}${titre?`<span class="tit">${esc(titre)}</span>`:it.eval?'':'<span class="ajout-t">＋ thématique</span>'}</button></td>`;
+    }
+    h+='</tr>';
+  }
+  h+=`</tbody></table></div>
+  <div class="legende"><span><i style="background:rgba(27,122,75,.25)"></i>Effectuée</span><span><i style="background:var(--retard-fond);border:2px solid #e4a95b"></i>Passée, pas cochée</span><span><i style="background:#fff;border:3px solid var(--tete)"></i>Prochaine séance</span><span>Touche une case pour la modifier. Les cases pâles appartiennent à un autre trimestre.</span></div>`;
+  return h;
+}
+
+/* ---------- Évaluations ---------- */
+function limitesSaisie(){
+  const m={};
+  for(const n of [6,5,4,3])E.tri[n].forEach((d,i)=>{const k=d+'|'+i;(m[k]=m[k]||{date:d,t:i+1,niv:[]}).niv.push(n+'e')});
+  return Object.values(m);
+}
+function vEvals(){
+  const a=auj();
+  const evals=P.items.filter(i=>i.actif&&i.eval);
+  const lim=limitesSaisie();
+  const passees=evals.filter(i=>i.date<a);
+  const lignes=[...evals.filter(i=>V.evPassees||i.date>=a).map(i=>({d:i.date,o:0,i})),
+    ...lim.filter(l=>V.evPassees||l.date>=a).map(l=>({d:l.date,o:1,l}))].sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:x.o-y.o);
+  let h=`<div class="barre"><h2>Évaluations <span class="sous">${evals.filter(i=>i.date>=a).length} à venir · ${passees.filter(i=>i.statut==='fait').length} faites</span></h2>
+    ${passees.length?`<button class="btn pousse" data-a="evpass">${V.evPassees?'Masquer':'Voir'} les passées (${passees.length})</button>`:''}</div>
+    <p class="remarque">Celles du T1 viennent de ton échéancier. Pour un cycle sans évaluation choisie, l'app propose les dernières séances avant la fin de saisie des notes (2, ou 1 pour un créneau une semaine sur deux). Si une séance est annulée, le contenu et l'évaluation glissent sur la date suivante. Pour changer une évaluation, ouvre la séance.</p>`;
+  let mois='';
+  for(const x of lignes){
+    const m=x.d.slice(0,7);
+    if(m!==mois){mois=m;const dt=pars(x.d);h+=`<div class="mois">${MOIS[dt.getMonth()]} ${dt.getFullYear()}</div>`}
+    if(x.l){h+=`<div class="ligne limite"><span class="date">${court(x.d)}</span><span class="txt"><b>Fin de saisie des notes T${x.l.t}</b> — ${x.l.niv.join(', ')}</span></div>`;continue}
+    const i=x.i,cl=CLASSES[i.cl],dj=ecart(a,i.date);
+    h+=`<button class="ligne ${i.apresLimite?'alerte':''}" data-a="ouvre" data-id="${esc(i.id)}" style="--c:${cl.c}">
+      <span class="pastille"></span><span class="date">${court(i.date)}</span>
+      <span class="txt"><b>${esc(cl.nom)}</b> — ${esc(i.act)}<small>S${i.n}/${i.total}${i.titre&&!/^eval$/i.test(i.titre)?' · '+esc(i.titre):''} · ${esc(i.h)}${i.lieu?' · '+esc(i.lieu):''}${i.apresLimite?' · <span class="alerte-txt">après la fin de saisie ('+jj(i.cycle.limite)+')</span>':''}</small></span>
+      <span class="droite">${i.statut==='fait'?'✓ faite':dj<0?'pas cochée':dj===0?"aujourd'hui":dj===1?'demain':'dans '+dj+' j'}</span></button>`;
+  }
+  if(!lignes.length)h+='<p class="vide-msg">Aucune évaluation à afficher.</p>';
+  return h;
+}
+
+/* ---------- Calendrier ---------- */
+const TYPES={vac:'Vacances',ferie:'Férié',stop:'Pas de cours',info:'Info'};
+function quiTxt(e){if(e.cl.length===ORDRE.length)return '';return e.cl.map(c=>CLASSES[c].nom.replace('ème','e')).join(', ')}
+function vCal(){
+  const a=auj();
+  const evs=E.events.slice().sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:0);
+  const nbPasse=evs.filter(e=>e.f<a).length;
+  const verif=evs.filter(e=>e.v).length;
+  let h=`<div class="barre"><h2>Calendrier <span class="sous">Vacances, jours fériés, voyages et informations</span></h2>
+    ${nbPasse?`<button class="btn pousse" data-a="calpass">${V.calPasse?'Masquer':'Voir'} le passé (${nbPasse})</button>`:''}
+    <button class="btn fort ${nbPasse?'':'pousse'}" data-a="evnew">＋ Ajouter</button></div>`;
+  if(verif)h+=`<p class="remarque att">${verif} élément${verif>1?'s':''} marqué${verif>1?'s':''} « à vérifier » : je les ai interprétés, ouvre-les pour corriger si besoin.</p>`;
+  let mois='';
+  for(const e of evs){
+    if(e.f<a&&!V.calPasse)continue;
+    const m=e.d.slice(0,7);
+    if(m!==mois){mois=m;const dt=pars(e.d);h+=`<div class="mois">${MOIS[dt.getMonth()]} ${dt.getFullYear()}</div>`}
+    h+=`<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="date">${court(e.d)}${e.f!==e.d?'<br>→ '+court(e.f):''}</span>
+      <span class="txt">${esc(e.t)}${quiTxt(e)?'<small>'+esc(quiTxt(e))+'</small>':''}</span>
+      <span class="droite">${e.v?'<span class="badge verif">à vérifier</span> ':''}<span class="badge k-${e.k}">${TYPES[e.k]}</span></span></button>`;
+  }
+  return h;
+}
+
+/* ---------- Réglages ---------- */
+function vReg(){
+  const instal=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  const lieu=location.protocol==='file:';
+  let h=`<div class="barre"><h2>Réglages</h2></div>`;
+  const lienJeton='https://github.com/settings/personal-access-tokens/new?name=Echeancier+Pro+iPad&description=Synchronisation+Echeancier+Pro&target_name=romeoprof&expires_in=366&contents=write';
+  h+=`<div class="bloc"><h3>Synchronisation en ligne</h3>`+(SY.token
+    ?`<p>Dès que l'appareil a du réseau, tes modifications sont envoyées dans ton dépôt privé <b>${DEPOT}</b>. Hors connexion, tout reste enregistré ici et part plus tard.</p>
+      <p id="sync-etat" class="remarque" style="color:var(--encre)">${esc(syTexte())}</p>
+      <div class="actions" style="justify-content:flex-start"><button class="btn fort" data-a="synow">Synchroniser maintenant</button><button class="btn" data-a="sypull">Récupérer les données en ligne</button><button class="btn danger" data-a="sydeco">Déconnecter</button></div>`
+    :`<p>Pour que tes modifications partent en ligne quand l'iPad a du réseau. À faire une seule fois :</p>
+      <ol style="margin:0 0 10px;padding-left:22px;font-size:14px;line-height:1.5"><li><a href="${lienJeton}" target="_blank" rel="noopener">Créer un jeton GitHub</a> (déjà prérempli).</li><li>Dans « Repository access », choisir <b>Only select repositories</b> puis <b>echeancier-pro-donnees</b>.</li><li>Cliquer sur « Generate token », copier le jeton et le coller ici.</li></ol>
+      <label class="champ">Jeton GitHub<input type="password" id="sy-token" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+      <button class="btn fort" data-a="syconnect">Connecter</button>`)+`</div>`;
+  h+=`<div class="bloc"><h3>Sauvegarde</h3><p>Tes données sont enregistrées sur cet appareil et fonctionnent sans connexion. Tu peux aussi exporter un fichier de sauvegarde, à garder dans Fichiers ou iCloud.<br>${E.sauve?'Dernière sauvegarde : '+court(E.sauve.slice(0,10))+'.':'Aucune sauvegarde pour le moment.'}</p>
+    <div class="actions" style="justify-content:flex-start"><button class="btn fort" data-a="exporte">Exporter</button><label class="btn" style="display:inline-flex;align-items:center">Importer<input type="file" id="imp" accept=".json,application/json" hidden></label></div></div>`;
+  h+=`<div class="bloc"><h3>Hors connexion</h3><p id="etatsw">${lieu?"Fichier ouvert directement : pour l'installer, il faut le mettre en ligne (voir LISEZ-MOI).":window.__offlinePret?'✓ Prête à fonctionner hors connexion.':'Mise en cache en cours… (connexion nécessaire la première fois)'}<br>${instal?"✓ Application lancée depuis l'écran d'accueil.":"Pour l'installer : menu Partager de Chrome puis « Sur l'écran d'accueil », et ouvre-la ensuite toujours depuis cette icône."}</p></div>`;
+  h+=`<div class="bloc"><h3>Dates des trimestres</h3><p>Dernier jour de chaque trimestre par niveau, pris sur les fins de saisie des notes. Le jour suivant, l'activité de l'emploi du temps change. Les évaluations sont placées avant ces dates.</p>
+    <div class="g-tri"><span></span><b>Fin T1</b><b>Fin T2</b><b>Fin T3</b>`;
+  for(const n of [6,5,4,3]){h+=`<b>${n}e</b>`+[0,1,2].map(i=>`<input type="date" aria-label="Fin T${i+1} ${n}e" data-c="tri" data-n="${n}" data-i="${i}" value="${E.tri[n][i]}">`).join('')}
+  h+=`</div><label class="champ" style="margin:12px 0 0">Dernier jour de cours de l'année<input type="date" data-c="fin" value="${E.fin}"></label></div>`;
+  h+=`<div class="bloc"><h3>Emploi du temps et activités</h3><p>Pour chaque créneau : l'activité et le lieu de chaque trimestre. SI = semaine impaire, SP = semaine paire. Les cases déjà cochées restent liées à leur date.</p>`;
+  for(const s of E.slots){
+    h+=`<div class="creneau"><b>${JOURS_L[s.j][0].toUpperCase()+JOURS_L[s.j].slice(1)} ${esc(s.h)}${s.p===1?' (SI)':s.p===0?' (SP)':''} — ${esc(CLASSES[s.cl].nom)}</b>`;
+    s.t.forEach((a,i)=>{h+=`<div class="l"><span class="tag-t t${i+1}" style="text-align:center">T${i+1}</span><input aria-label="Activité T${i+1}" data-c="slot" data-s="${s.id}" data-i="${i}" data-j="0" value="${esc(a[0])}"><input aria-label="Lieu T${i+1}" data-c="slot" data-s="${s.id}" data-i="${i}" data-j="1" value="${esc(a[1])}"></div>`});
+    h+='</div>';
+  }
+  h+=`</div><div class="bloc"><h3>Tout remettre à zéro</h3><p>Efface tous les statuts, notes et modifications sur cet appareil.</p><button class="btn danger" data-a="raz">Tout effacer</button></div>`;
+  return h;
+}
+
+/* ---------- Fenêtres ---------- */
+function ouvreFen(html){$('#couche').innerHTML=`<div class="voile" data-a="fermeVoile"><div class="fen" role="dialog" aria-modal="true">${html}</div></div>`}
+function fermeFen(){$('#couche').innerHTML=''}
+function fenSeance(id){
+  calcule();
+  const it=P.byId.get(id);if(!it)return fermeFen();
+  const cl=CLASSES[it.cl];
+  const bloque=it.bloque&&!it.force;
+  let h=`<h2>${esc(cl.nom)} — ${esc(it.act)}</h2><p class="sous">${esc(long(it.date))} · ${esc(it.h)}${it.lieu?' · '+esc(it.lieu):''}${it.n?'<br>Séance '+it.n+' sur '+it.total+' · Trimestre '+it.tri:''}</p>`;
+  if(bloque){
+    h+=`<p class="remarque att">Pas de cours prévu : <b>${esc(it.bloque.t)}</b>. Cette date ne compte pas dans le cycle.</p>
+    <div class="actions"><button class="btn" data-a="force" data-id="${esc(id)}">Rétablir cette séance</button><button class="btn fort" data-a="ferme">Fermer</button></div>`;
+    return ouvreFen(h);
+  }
+  if(it.actif)h+=`<label class="champ">Thématique (titre de la séance S${it.n})<input data-c="titre" data-cle="${esc(it.cle)}" data-i="${it.n-1}" value="${esc(it.titre)}" placeholder="Ex. : Prise de marque" autocomplete="off"></label>`;
+  h+=`<div class="seg">
+    <button class="s-faire" data-a="st" data-id="${esc(id)}" data-v="" aria-pressed="${it.statut===''}">À faire</button>
+    <button class="s-fait" data-a="st" data-id="${esc(id)}" data-v="fait" aria-pressed="${it.statut==='fait'}">Effectuée</button>
+    <button class="s-annule" data-a="st" data-id="${esc(id)}" data-v="annule" aria-pressed="${it.statut==='annule'}">Annulée</button></div>`;
+  if(it.actif){
+    h+=`<button class="interr" data-a="evtog" data-id="${esc(id)}" aria-pressed="${!!it.eval}"><span>Évaluation</span><span>${it.eval?'OUI':'non'}</span></button>`;
+    if(it.cycle&&it.cycle.manuel)h+=`<p class="remarque">Évaluations de ce cycle choisies à la main. <button class="lien" data-a="evauto" data-id="${esc(id)}">Revenir au calcul automatique</button></p>`;
+    if(it.apresLimite&&it.eval)h+=`<p class="remarque att">Cette date tombe après la fin de saisie des notes (${esc(long(it.cycle.limite))}).</p>`;
+  }else h+=`<p class="remarque">Cette séance ne compte plus dans le cycle : les contenus et les évaluations glissent sur les dates suivantes.</p>`;
+  h+=`<label class="champ">Remarque (matériel, absents…)<textarea data-c="note" data-id="${esc(id)}">${esc(it.note)}</textarea></label>
+  <div class="actions">${it.actif&&it.n>1?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n-2].id)}">‹ S${it.n-1}</button>`:''}${it.actif&&it.n<it.total?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n].id)}">S${it.n+1} ›</button>`:''}${it.extra?`<button class="btn danger" data-a="suppx" data-id="${esc(id)}">Supprimer</button>`:''}${it.bloque&&it.force?`<button class="btn" data-a="force" data-id="${esc(id)}">Annuler le rétablissement</button>`:''}<button class="btn fort" data-a="ferme">Fermer</button></div>`;
+  ouvreFen(h);
+}
+function fenAjout(date){
+  const d=date||(()=>{const a=auj();return a<DEBUT?DEBUT:a})();
+  ouvreFen(`<h2>Ajouter une séance</h2><p class="sous">Pour un rattrapage ou une séance hors emploi du temps.</p>
+  <label class="champ">Date<input type="date" id="x-date" value="${d}"></label>
+  <label class="champ">Classe<select id="x-cl">${ORDRE.map(c=>`<option value="${c}">${esc(CLASSES[c].nom)}</option>`).join('')}</select></label>
+  <label class="champ">Activité<input id="x-act" list="x-acts" autocomplete="off"><datalist id="x-acts">${[...new Set(E.slots.flatMap(s=>s.t.map(t=>t[0])))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist></label>
+  <label class="champ">Horaire<select id="x-h">${[H1,H2,H3].map(h=>`<option>${h}</option>`).join('')}</select></label>
+  <label class="champ">Lieu<input id="x-lieu" list="x-lieux" autocomplete="off"><datalist id="x-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist></label>
+  <div class="actions"><button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="xsave">Ajouter</button></div>`);
+}
+function fenEvent(id){
+  const e=id?E.events.find(x=>x.id===id):{d:auj(),f:auj(),t:'',k:'stop',cl:ORDRE.slice()};
+  ouvreFen(`<h2>${id?'Modifier':'Ajouter'} un événement</h2><p class="sous">${e.v?'<span class="badge verif">à vérifier</span> Corrige si besoin, puis enregistre pour retirer cette mention.':'&nbsp;'}</p>
+  <label class="champ">Intitulé<input id="e-t" value="${esc(e.t)}"></label>
+  <label class="champ">Du<input type="date" id="e-d" value="${e.d}"></label>
+  <label class="champ">Au (inclus)<input type="date" id="e-f" value="${e.f}"></label>
+  <label class="champ">Effet sur les séances<select id="e-k">${[['stop','Pas de cours pour les classes cochées'],['info','Simple information'],['ferie','Jour férié (aucun cours)'],['vac','Vacances (aucun cours)']].map(([k,l])=>`<option value="${k}" ${e.k===k?'selected':''}>${l}</option>`).join('')}</select></label>
+  <div class="champ">Classes concernées<div class="cases">${ORDRE.map(c=>`<label><input type="checkbox" class="e-c" value="${c}" ${e.cl.includes(c)?'checked':''}>${esc(CLASSES[c].nom)}</label>`).join('')}</div></div>
+  <div class="actions">${id?`<button class="btn danger" data-a="evdel" data-id="${esc(id)}">Supprimer</button>`:''}<button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="evsave" data-id="${esc(id||'')}">Enregistrer</button></div>`);
+}
+
+/* ---------- Toast ---------- */
+let tt;
+function toast(msg,lib,fn){
+  clearTimeout(tt);
+  $('#toast').innerHTML=`<div class="toast" role="status"><span>${esc(msg)}</span>${lib?`<button id="t-b">${esc(lib)}</button>`:''}</div>`;
+  if(lib)$('#t-b').onclick=()=>{fn();$('#toast').innerHTML=''};
+  tt=setTimeout(()=>{$('#toast').innerHTML=''},lib?8000:3500);
+}
+
+/* ---------- Sauvegarde fichier ---------- */
+async function exporte(){
+  E.sauve=new Date().toISOString();sauve();
+  const nom='echeancier-pro-'+auj()+'.json';
+  const blob=new Blob([JSON.stringify(E,null,1)],{type:'application/json'});
+  try{
+    const f=new File([blob],nom,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:nom});affiche(true);return}
+  }catch(e){if(e&&e.name==='AbortError')return}
+  const u=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=u;a.download=nom;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u),5000);
+  affiche(true);toast('Sauvegarde exportée : '+nom);
+}
+function importe(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const o=JSON.parse(r.result);
+      if(!o||o.v!==1||!Array.isArray(o.events)||!Array.isArray(o.slots)||!o.tri)throw 0;
+      if(!confirm('Remplacer toutes les données de cet appareil par cette sauvegarde ?'))return;
+      E=Object.assign(etatNeuf(),o);sauve();affiche();toast('Sauvegarde restaurée.');
+    }catch(e){toast("Ce fichier n'est pas une sauvegarde valide.")}
+  };
+  r.readAsText(file);
+}
+
+/* ---------- Actions ---------- */
+const ACT={
+  vue(b){V.vue=b.dataset.k;fermeFen();affiche()},
+  sem(b){V.lundi=ajoute(V.lundi,+b.dataset.n);affiche()},
+  semauj(){V.lundi=lundiDefaut();affiche()},
+  tri(b){V.tri=+b.dataset.n;affiche()},
+  evpass(){V.evPassees=!V.evPassees;affiche(true)},
+  calpass(){V.calPasse=!V.calPasse;affiche(true)},
+  ouvre(b){fenSeance(b.dataset.id)},
+  ferme(){fermeFen();affiche(true)},
+  fermeVoile(b,ev){if(ev.target===b){fermeFen();affiche(true)}},
+  coche(b){
+    const id=b.dataset.id;
+    majS(id,'st',etatS(id).st==='fait'?'':'fait');sauve();affiche(true);
+  },
+  st(b){
+    const id=b.dataset.id;
+    majS(id,'st',b.dataset.v);
+    sauve();fenSeance(id);affiche(true);
+  },
+  evtog(b){
+    const id=b.dataset.id,it=P.byId.get(id),c=it.cycle;
+    if(!c.manuel){c.lst.forEach((x,i)=>majPlan(c.cle,i,'e',!!x.eval));E.evM[c.cle]=true}
+    else c.lst.forEach((x,i)=>majPlan(c.cle,i,'e',!!x.eval));
+    majPlan(c.cle,it.n-1,'e',!it.eval);
+    sauve();fenSeance(id);affiche(true);
+  },
+  evauto(b){
+    const it=P.byId.get(b.dataset.id);
+    (E.plan[it.cle]||[]).forEach((p,i)=>{if(p)majPlan(it.cle,i,'e',false)});
+    delete E.evM[it.cle];sauve();fenSeance(b.dataset.id);affiche(true);
+  },
+  force(b){const id=b.dataset.id;majS(id,'force',!etatS(id).force);sauve();fenSeance(id);affiche(true)},
+  toutfait(){
+    const l=enRetard();
+    if(!confirm('Marquer '+l.length+' séance(s) passée(s) comme effectuée(s) ?'))return;
+    const avant=JSON.stringify(E.s);
+    l.forEach(i=>majS(i.id,'st','fait'));sauve();affiche(true);
+    toast(l.length+' séances marquées effectuées.','Annuler',()=>{E.s=JSON.parse(avant);sauve();affiche(true)});
+  },
+  ajout(b){fenAjout(b.dataset.date)},
+  xsave(){
+    const date=$('#x-date').value,act=$('#x-act').value.trim();
+    if(!date||!act){toast('Indique au moins la date et l\'activité.');return}
+    if(dow(date)>5&&!confirm('Cette date tombe un week-end. Ajouter quand même ?'))return;
+    E.extras.push({id:'x'+(E.seq++),date,cl:$('#x-cl').value,act,h:$('#x-h').value,lieu:$('#x-lieu').value.trim()});
+    sauve();fermeFen();V.lundi=lundi(date);affiche(true);toast('Séance ajoutée : '+court(date));
+  },
+  suppx(b){
+    if(!confirm('Supprimer cette séance ?'))return;
+    E.extras=E.extras.filter(x=>x.id!==b.dataset.id);delete E.s[b.dataset.id];sauve();fermeFen();affiche(true);
+  },
+  evnew(){fenEvent(null)},
+  evedit(b){fenEvent(b.dataset.id)},
+  evsave(b){
+    const t=$('#e-t').value.trim(),d=$('#e-d').value;let f=$('#e-f').value;
+    if(!t||!d){toast("Indique un intitulé et une date.");return}
+    if(!f||f<d)f=d;
+    const cl=[...document.querySelectorAll('.e-c:checked')].map(x=>x.value);
+    const k=$('#e-k').value;
+    if(k==='stop'&&!cl.length){toast('Coche au moins une classe.');return}
+    const id=b.dataset.id;
+    if(id)Object.assign(E.events.find(x=>x.id===id),{t,d,f,k,cl,v:false});
+    else E.events.push({id:'e'+(E.seq++),t,d,f,k,cl,v:false});
+    sauve();fermeFen();affiche(true);
+  },
+  evdel(b){
+    if(!confirm('Supprimer cet événement du calendrier ?'))return;
+    E.events=E.events.filter(x=>x.id!==b.dataset.id);sauve();fermeFen();affiche(true);
+  },
+  exporte(){exporte()},
+  syconnect(){
+    const j=$('#sy-token').value.trim();
+    if(!j){toast('Colle d’abord le jeton GitHub.');return}
+    syConnecter(j);
+  },
+  synow(){syErreur='';syPuce();syncNow().then(()=>{toast(syErreur?syErreur:SY.sale?'Envoi impossible pour le moment.':'Synchronisation terminée.')})},
+  async sypull(){
+    if(!confirm('Remplacer les données de cet appareil par celles qui sont en ligne ?'))return;
+    try{
+      const d=await ghLire();
+      if(!d){toast('Aucune donnée en ligne pour le moment.');return}
+      syAppliquer(d.texte);SY.sha=d.sha;SY.sale=false;syErreur='';sySauve();affiche(true);toast('Données récupérées.');
+    }catch(e){toast(syMessage(e)||'Récupération impossible : vérifie le réseau.')}
+  },
+  sydeco(){
+    if(!confirm('Arrêter la synchronisation et effacer le jeton de cet appareil ? Tes données restent ici.'))return;
+    SY={token:'',sha:null,sale:false,dernier:null};syErreur='';sySauve();affiche(true);
+  },
+  raz(){
+    if(!confirm('Effacer TOUS les statuts, notes et modifications'+(SY.token?' sur cet appareil et en ligne':' sur cet appareil')+' ?'))return;
+    if(!confirm('Dernière confirmation : cette action est définitive.'))return;
+    E=etatNeuf();sauve();V.vue='semaine';affiche();
+  },
+};
+document.addEventListener('click',ev=>{
+  const b=ev.target.closest('[data-a]');
+  if(!b)return;
+  const fn=ACT[b.dataset.a];
+  if(fn)fn(b,ev);
+});
+document.addEventListener('input',ev=>{
+  const t=ev.target;
+  if(t.dataset.c==='note'){majS(t.dataset.id,'n',t.value);sauve()}
+  if(t.dataset.c==='titre'){majPlan(t.dataset.cle,+t.dataset.i,'t',t.value);sauve()}
+});
+document.addEventListener('change',ev=>{
+  const t=ev.target,c=t.dataset.c;
+  if(t.id==='imp'&&t.files[0]){importe(t.files[0]);return}
+  if(c==='tri'&&t.value){E.tri[t.dataset.n][+t.dataset.i]=t.value;sauve()}
+  if(c==='fin'&&t.value){E.fin=t.value;sauve()}
+  if(c==='slot'){
+    const s=E.slots.find(x=>x.id===t.dataset.s),i=+t.dataset.i,j=+t.dataset.j,val=t.value.trim();
+    /* Une activité renommée garde ses contenus et ses évaluations */
+    if(j===0&&val){
+      const av=s.cl+'|'+s.t[i][0],ap=s.cl+'|'+val;
+      if(av!==ap&&E.plan[av]&&!E.plan[ap]){E.plan[ap]=JSON.parse(JSON.stringify(E.plan[av]));if(E.evM[av])E.evM[ap]=true}
+    }
+    s.t[i][j]=val;sauve();
+  }
+});
+/* Le jour change si l'app reste ouverte plusieurs jours */
+let jourVu=auj();
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&auj()!==jourVu){jourVu=auj();V.lundi=lundiDefaut();affiche(true)}
+  syncNow();
+});
+
+affiche();
+setTimeout(syncNow,1000);
+if(!lectureOK)toast("Lecture des données impossible : le stockage de ce navigateur est bloqué.");
+
+/* Hors connexion */
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').then(()=>navigator.serviceWorker.ready).then(()=>{
+    window.__offlinePret=true;const n=$('#etatsw');if(n)n.firstChild.textContent='✓ Prête à fonctionner hors connexion.';
+  }).catch(()=>{const n=$('#etatsw');if(n)n.firstChild.textContent="La mise en cache a échoué : recharge la page avec une connexion."});
+}
+</script>
+</body>
+</html>
