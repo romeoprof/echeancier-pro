@@ -120,6 +120,34 @@ td.vide{background:#faf9f6}
 .verif{background:#fff1a8;color:#6b5500}
 .vide-msg{color:var(--doux);padding:30px 10px;text-align:center}
 
+/* Calendrier en grille */
+:root{--c-vac:#dbe6f4;--c-ferie:#ddd8ee;--c-stop:#fbe6c8}
+.cal-titre{min-width:170px;text-align:center;text-transform:capitalize}
+.btn:disabled{opacity:.35}
+.cal{display:grid;grid-template-columns:26px repeat(5,minmax(0,1fr)) repeat(2,minmax(0,.62fr));background:var(--ligne);gap:1px;border:1px solid var(--ligne);border-radius:12px;overflow:hidden}
+.cal-t{background:#e7e5dc;font-size:13px;font-weight:700;text-align:center;padding:6px 2px}
+.cal-s{background:#f0eee7;font-size:11px;color:var(--doux);display:flex;align-items:flex-start;justify-content:center;padding-top:8px}
+.cal-t.cal-s{padding:6px 0;align-items:center;font-size:11px}
+.cal-j{background:var(--carte);min-height:112px;padding:5px 6px 6px;display:flex;flex-direction:column;gap:2px;text-align:left;align-items:stretch;justify-content:flex-start;min-width:0;overflow:hidden}
+.cal-j.hors{background:#f4f3ee}
+.cal-j.we{background:#faf9f5}
+.cal-j.j-vac{background:var(--c-vac)}
+.cal-j.j-ferie{background:var(--c-ferie)}
+.cal-j.j-stop{background:var(--c-stop)}
+.cal-j .num{font-weight:700;font-size:14px;line-height:22px;display:flex;align-items:center;gap:5px}
+.cal-j.ajd .num{color:#fff;background:var(--tete);border-radius:11px;padding:0 8px;align-self:flex-start}
+.cal-l{font-size:12px;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:#46525d}
+.cal-l.fort{font-weight:700;color:#2f3f55}
+.cal-l.c-stop{font-weight:700;color:#7a3d10}
+.cal-l.c-eval{font-weight:700;color:#fff;background:var(--eval);border-radius:4px;padding:1px 4px;-webkit-line-clamp:1}
+.cal-plus{font-size:11.5px;color:var(--lien);font-weight:600}
+.pt-verif{display:inline-block;width:8px;height:8px;border-radius:50%;background:#e0b400;margin:0;border:0;vertical-align:-1px}
+@media (max-width:700px){
+  .cal{grid-template-columns:20px repeat(5,minmax(0,1fr)) repeat(2,minmax(0,.5fr))}
+  .cal-j{min-height:82px;padding:3px}
+  .cal-l{font-size:10px;-webkit-line-clamp:1}
+}
+
 /* Fenêtre */
 .voile{position:fixed;inset:0;background:rgba(15,25,35,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
 .fen{background:var(--carte);border-radius:16px;width:100%;max-width:520px;max-height:calc(100dvh - 32px);overflow:auto;padding:18px;box-shadow:0 12px 40px rgba(0,0,0,.28)}
@@ -578,7 +606,7 @@ function enRetard(){return P.items.filter(i=>i.actif&&i.retard)}
 /* =========================================================
    NAVIGATION ET AFFICHAGE
    ========================================================= */
-const V={vue:'semaine',lundi:null,tri:null,evPassees:false,calPasse:false};
+const V={vue:'semaine',lundi:null,tri:null,evPassees:false,calMois:null};
 function lundiDefaut(){const a=auj();const d=dow(a)>5?ajoute(lundi(a),7):lundi(a);return d<DEBUT?lundi(DEBUT):d}
 V.lundi=lundiDefaut();
 V.tri=(()=>{const a=auj();return a<='2026-11-25'?1:a<='2027-02-12'?2:3})();
@@ -716,25 +744,67 @@ function vEvals(){
 /* ---------- Calendrier ---------- */
 const TYPES={vac:'Vacances',ferie:'Férié',stop:'Pas de cours',info:'Info'};
 function quiTxt(e){if(e.cl.length===ORDRE.length)return '';return e.cl.map(c=>CLASSES[c].nom.replace('ème','e')).join(', ')}
+const CAL_DEBUT='2026-09', CAL_FIN='2027-08';
+const moisDecale=(m,n)=>{const[a,o]=m.split('-').map(Number);const d=new Date(a,o-1+n,1,12);return fmt(d).slice(0,7)};
+const nomCourt=c=>CLASSES[c].nom.replace('ème','e');
+const moisCourant=()=>{const m=auj().slice(0,7);return m<CAL_DEBUT?CAL_DEBUT:m>CAL_FIN?CAL_FIN:m};
+function evalsDuJour(d){return P.items.filter(i=>i.date===d&&i.actif&&i.eval)}
+function typeJour(evs){for(const k of ['vac','ferie','stop'])if(evs.some(e=>e.k===k))return k;return ''}
 function vCal(){
-  const a=auj();
-  const evs=E.events.slice().sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:0);
-  const nbPasse=evs.filter(e=>e.f<a).length;
-  const verif=evs.filter(e=>e.v).length;
-  let h=`<div class="barre"><h2>Calendrier <span class="sous">Vacances, jours fériés, voyages et informations</span></h2>
-    ${nbPasse?`<button class="btn pousse" data-a="calpass">${V.calPasse?'Masquer':'Voir'} le passé (${nbPasse})</button>`:''}
-    <button class="btn fort ${nbPasse?'':'pousse'}" data-a="evnew">＋ Ajouter</button></div>`;
-  if(verif)h+=`<p class="remarque att">${verif} élément${verif>1?'s':''} marqué${verif>1?'s':''} « à vérifier » : je les ai interprétés, ouvre-les pour corriger si besoin.</p>`;
-  let mois='';
-  for(const e of evs){
-    if(e.f<a&&!V.calPasse)continue;
-    const m=e.d.slice(0,7);
-    if(m!==mois){mois=m;const dt=pars(e.d);h+=`<div class="mois">${MOIS[dt.getMonth()]} ${dt.getFullYear()}</div>`}
-    h+=`<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="date">${court(e.d)}${e.f!==e.d?'<br>→ '+court(e.f):''}</span>
-      <span class="txt">${esc(e.t)}${quiTxt(e)?'<small>'+esc(quiTxt(e))+'</small>':''}</span>
-      <span class="droite">${e.v?'<span class="badge verif">à vérifier</span> ':''}<span class="badge k-${e.k}">${TYPES[e.k]}</span></span></button>`;
+  if(!V.calMois)V.calMois=moisCourant();
+  const a=auj(),m=V.calMois,d1=m+'-01';
+  const dt=pars(d1),verif=E.events.filter(e=>e.v).length;
+  let h=`<div class="barre">
+    <button class="btn rond" data-a="calm" data-n="-1" ${m<=CAL_DEBUT?'disabled':''} aria-label="Mois précédent">‹</button>
+    <h2 class="cal-titre">${MOIS[dt.getMonth()]} ${dt.getFullYear()}</h2>
+    <button class="btn rond" data-a="calm" data-n="1" ${m>=CAL_FIN?'disabled':''} aria-label="Mois suivant">›</button>
+    ${m!==moisCourant()?'<button class="btn" data-a="calauj">Ce mois-ci</button>':''}
+    ${verif?`<button class="btn pousse" data-a="calverif">À vérifier (${verif})</button>`:''}
+    <button class="btn fort ${verif?'':'pousse'}" data-a="evnew" data-date="${m===a.slice(0,7)?a:d1}">＋ Ajouter</button></div>`;
+  h+=`<div class="cal" role="grid"><div class="cal-t cal-s">S.</div>${['Lun.','Mar.','Mer.','Jeu.','Ven.','Sam.','Dim.'].map(j=>`<div class="cal-t">${j}</div>`).join('')}`;
+  const finMois=ajoute(moisDecale(m,1)+'-01',-1);
+  for(let l=lundi(d1);l<=finMois;l=ajoute(l,7)){
+    h+=`<div class="cal-s">${semaineISO(l)}</div>`;
+    for(let i=0;i<7;i++){
+      const d=ajoute(l,i),dedans=d.slice(0,7)===m;
+      if(!dedans){h+='<div class="cal-j hors"></div>';continue}
+      const evs=P.parJour[d]||[],type=typeJour(evs);
+      const lignes=[];
+      for(const e of evs.filter(e=>e.k==='vac'||e.k==='ferie'))
+        if(e.k==='ferie'||d===e.d||d===d1||(i===0))lignes.push(`<span class="cal-l fort">${esc(e.t)}</span>`);
+      for(const e of evs.filter(e=>e.k==='stop'))lignes.push(`<span class="cal-l c-stop">${esc(e.t)}</span>`);
+      for(const x of evalsDuJour(d))lignes.push(`<span class="cal-l c-eval">EVAL ${esc(nomCourt(x.cl))}</span>`);
+      for(const e of evs.filter(e=>e.k==='info'))for(const t of e.t.split(' · '))lignes.push(`<span class="cal-l">${esc(t)}</span>`);
+      const max=4,plus=lignes.length-max;
+      h+=`<button class="cal-j ${type?'j-'+type:''} ${d===a?'ajd':''} ${i>4?'we':''}" data-a="caljour" data-d="${d}" aria-label="${esc(long(d))}">
+        <span class="num">${pars(d).getDate()}${evs.some(e=>e.v)?' <i class="pt-verif"></i>':''}</span>
+        ${lignes.slice(0,plus>0?max-1:max).join('')}${plus>0?`<span class="cal-plus">+ ${plus+1} autres</span>`:''}</button>`;
+    }
   }
+  h+=`</div><div class="legende"><span><i style="background:var(--c-vac)"></i>Vacances</span><span><i style="background:var(--c-ferie)"></i>Férié</span><span><i style="background:var(--c-stop)"></i>Pas de cours (certaines classes ou toutes)</span><span><i style="background:var(--eval)"></i>Évaluation</span><span><i class="pt-verif" style="width:10px;height:10px;border-radius:50%"></i>À vérifier</span><span>Touche un jour pour voir le détail ou ajouter un événement.</span></div>`;
   return h;
+}
+function ligneEvent(e){
+  return `<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="txt">${esc(e.t)}<small>${e.f!==e.d?court(e.d)+' → '+court(e.f):''}${e.f!==e.d&&quiTxt(e)?' · ':''}${esc(quiTxt(e))}</small></span>
+    <span class="droite">${e.v?'<span class="badge verif">à vérifier</span> ':''}<span class="badge k-${e.k}">${TYPES[e.k]}</span></span></button>`;
+}
+function fenJour(d){
+  calcule();
+  const evs=P.parJour[d]||[],se=P.items.filter(i=>i.date===d);
+  let h=`<h2>${esc(long(d)[0].toUpperCase()+long(d).slice(1))}</h2><p class="sous">Semaine ${semaineISO(d)} (${semaineISO(d)%2?'impaire':'paire'})</p>`;
+  h+=evs.length?evs.map(ligneEvent).join(''):'<p class="remarque">Aucun événement ce jour.</p>';
+  if(se.length){
+    h+='<div class="mois">Séances</div>';
+    h+=se.map(i=>{const off=(i.bloque&&!i.force)||i.statut==='annule';return `<button class="ligne" data-a="ouvre" data-id="${esc(i.id)}" style="--c:${CLASSES[i.cl].c}"><span class="pastille"></span><span class="txt"><b>${esc(CLASSES[i.cl].nom)}</b> — ${esc(i.act)}<small>${esc(i.h)}${i.titre?' · '+esc(i.titre):''}${off?' · pas de séance':''}</small></span><span class="droite">${i.eval&&!off?'<span class="tag-eval">EVAL</span> ':''}${i.statut==='fait'?'✓':''}</span></button>`}).join('');
+  }
+  h+=`<div class="actions"><button class="btn" data-a="evnew" data-date="${d}">＋ Ajouter un événement</button><button class="btn fort" data-a="ferme">Fermer</button></div>`;
+  ouvreFen(h);
+}
+function fenVerif(){
+  const l=E.events.filter(e=>e.v).sort((x,y)=>x.d<y.d?-1:1);
+  ouvreFen(`<h2>À vérifier</h2><p class="sous">Ces événements ont été interprétés. Ouvre-les pour corriger, puis enregistre pour retirer la mention.</p>
+  ${l.map(e=>`<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="date">${court(e.d)}</span><span class="txt">${esc(e.t)}</span><span class="droite"><span class="badge k-${e.k}">${TYPES[e.k]}</span></span></button>`).join('')||'<p class="remarque">Plus rien à vérifier.</p>'}
+  <div class="actions"><button class="btn fort" data-a="ferme">Fermer</button></div>`);
 }
 
 /* ---------- Réglages ---------- */
@@ -806,8 +876,9 @@ function fenAjout(date){
   <label class="champ">Lieu<input id="x-lieu" list="x-lieux" autocomplete="off"><datalist id="x-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist></label>
   <div class="actions"><button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="xsave">Ajouter</button></div>`);
 }
-function fenEvent(id){
-  const e=id?E.events.find(x=>x.id===id):{d:auj(),f:auj(),t:'',k:'stop',cl:ORDRE.slice()};
+function fenEvent(id,date){
+  const jour=date||auj();
+  const e=id?E.events.find(x=>x.id===id):{d:jour,f:jour,t:'',k:'info',cl:ORDRE.slice()};
   ouvreFen(`<h2>${id?'Modifier':'Ajouter'} un événement</h2><p class="sous">${e.v?'<span class="badge verif">à vérifier</span> Corrige si besoin, puis enregistre pour retirer cette mention.':'&nbsp;'}</p>
   <label class="champ">Intitulé<input id="e-t" value="${esc(e.t)}"></label>
   <label class="champ">Du<input type="date" id="e-d" value="${e.d}"></label>
@@ -860,7 +931,10 @@ const ACT={
   semauj(){V.lundi=lundiDefaut();affiche()},
   tri(b){V.tri=+b.dataset.n;affiche()},
   evpass(){V.evPassees=!V.evPassees;affiche(true)},
-  calpass(){V.calPasse=!V.calPasse;affiche(true)},
+  calm(b){V.calMois=moisDecale(V.calMois,+b.dataset.n);affiche()},
+  calauj(){V.calMois=moisCourant();affiche()},
+  caljour(b){fenJour(b.dataset.d)},
+  calverif(){fenVerif()},
   ouvre(b){fenSeance(b.dataset.id)},
   ferme(){fermeFen();affiche(true)},
   fermeVoile(b,ev){if(ev.target===b){fermeFen();affiche(true)}},
@@ -905,7 +979,7 @@ const ACT={
     if(!confirm('Supprimer cette séance ?'))return;
     E.extras=E.extras.filter(x=>x.id!==b.dataset.id);delete E.s[b.dataset.id];sauve();fermeFen();affiche(true);
   },
-  evnew(){fenEvent(null)},
+  evnew(b){fenEvent(null,b.dataset.date)},
   evedit(b){fenEvent(b.dataset.id)},
   evsave(b){
     const t=$('#e-t').value.trim(),d=$('#e-d').value;let f=$('#e-f').value;
