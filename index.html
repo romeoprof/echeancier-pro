@@ -407,7 +407,7 @@ const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
 /* =========================================================
    ÉTAT
    ========================================================= */
-function etatNeuf(){return {v:1,migr:3,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+function etatNeuf(){return {v:1,migr:3,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
 /* Met à niveau des données déjà enregistrées, sans toucher à ce que l'utilisateur a saisi */
 let migree=false;
 function migre(o){
@@ -496,9 +496,30 @@ function syContenu(){
     restantes:P.cycles.filter(c=>c.prochaine).map(c=>({classe:CLASSES[c.cl].nom,activite:c.act,prochaine_evaluation:c.prochaine.date,seances_avant:c.avant,dont_a_confirmer:c.avantDoute})),
     etat:E},null,1);
 }
+/* Un événement venu de l'extérieur doit être bien formé, sinon il est ignoré */
+function evenementValide(e){
+  const jour=/^\d{4}-\d\d-\d\d$/;
+  return !!e&&typeof e.id==='string'&&typeof e.t==='string'&&e.t.trim()!==''&&jour.test(e.d||'')&&jour.test(e.f||'')&&e.f>=e.d
+    &&['vac','ferie','stop','info','doute'].includes(e.k)&&Array.isArray(e.cl)&&e.cl.every(c=>ORDRE.includes(c));
+}
+/* Les événements ajoutés par la tâche du samedi ont un identifiant « m-… ».
+   Ils sont repris une seule fois : un événement supprimé ici ne revient pas. */
+function syFusion(texte){
+  let distants=[];
+  try{distants=JSON.parse(texte).etat.events||[]}catch(e){return}
+  for(const e of distants){
+    if(!e||typeof e.id!=='string'||!e.id.startsWith('m-')||E.mVus[e.id]||!evenementValide(e))continue;
+    E.mVus[e.id]=true;
+    if(!E.events.some(x=>x.id===e.id))E.events.push(e);
+  }
+  try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}
+}
 function syAppliquer(texte){
   const o=JSON.parse(texte).etat;
   if(!o||o.v!==1||!Array.isArray(o.events)||!Array.isArray(o.slots))throw {code:'format'};
+  o.events=o.events.filter(evenementValide);
+  o.mVus=o.mVus||{};
+  for(const e of o.events)if(e.id.startsWith('m-'))o.mVus[e.id]=true;
   const avant=migree;migree=false;
   E=migre(o);
   if(migree)SY.sale=true;
@@ -520,12 +541,19 @@ async function syncNow(){
     const ailleurs=dist&&SY.sha&&dist.sha!==SY.sha;
     if(ailleurs&&!SY.sale){syAppliquer(dist.texte);SY.sha=dist.sha}
     else if(SY.sale||!dist){
-      if(ailleurs)toast('Le fichier en ligne avait changé : cet appareil le remplace (l’ancienne version reste dans l’historique GitHub).');
+      if(ailleurs){
+        const nb=E.events.length;
+        syFusion(dist.texte);
+        toast(E.events.length>nb?'Nouveaux événements reçus de la tâche du samedi : ils ont été ajoutés au calendrier.':'Le fichier en ligne avait changé : cet appareil le remplace (l’ancienne version reste dans l’historique GitHub).');
+        if(E.events.length>nb&&!document.querySelector('.voile')&&V.vue!=='reg')affiche(true);
+      }
       const g=syGen;
       try{SY.sha=await ghEcrire(syContenu(),dist&&dist.sha)}
       catch(e){
         if(e.code!==409&&e.code!==422)throw e;
-        dist=await ghLire();SY.sha=await ghEcrire(syContenu(),dist&&dist.sha);
+        dist=await ghLire();
+        if(dist)syFusion(dist.texte);
+        SY.sha=await ghEcrire(syContenu(),dist&&dist.sha);
       }
       if(g===syGen)SY.sale=false;
       SY.dernier=new Date().toISOString();
@@ -724,7 +752,7 @@ function bandeauxAlerte(){
   const q=P.doutes;
   if(q.length){
     const d=q[0];
-    h+=`<div class="bandeau doute"><p><b>Le cours est-il maintenu ?</b> ${esc(d.e.t)} — ${esc(datesEvent(d.e))}<br><small>${sPluriel(d.seances.length,'séance')} concernée${d.seances.length>1?'s':''} : ${esc([...new Set(d.seances.map(i=>nomCourt(i.cl)))].join(', '))}</small></p>${boutonsDoute(d.e)}${q.length>1?`<button class="btn" data-a="doutes">Toutes les questions (${q.length})</button>`:''}</div>`;
+    h+=`<div class="bandeau doute"><p><b>Le cours est-il maintenu ?</b> ${esc(d.e.t)} — ${esc(datesEvent(d.e))}<br><small>${sPluriel(d.seances.length,'séance')} concernée${d.seances.length>1?'s':''} : ${esc([...new Set(d.seances.map(i=>nomCourt(i.cl)))].join(', '))}${d.e.src?'<br>Source : '+esc(d.e.src):''}</small></p>${boutonsDoute(d.e)}${q.length>1?`<button class="btn" data-a="doutes">Toutes les questions (${q.length})</button>`:''}</div>`;
   }
   for(const i of P.perdues)h+=`<div class="bandeau perdue"><p><b>Évaluation sans cours :</b> ${esc(nomCourt(i.cl))}, ${esc(i.act)} — ${esc(court(i.date))} (${esc(i.bloque&&!i.force?i.bloque.t:i.motif||'séance annulée')})</p><button class="btn" data-a="ouvre" data-id="${esc(i.id)}">Choisir une autre date</button></div>`;
   return h;
@@ -919,7 +947,7 @@ function vCal(){
   return h;
 }
 function ligneEvent(e){
-  return `<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="txt">${esc(e.t)}<small>${e.f!==e.d?court(e.d)+' → '+court(e.f):''}${e.f!==e.d&&quiTxt(e)?' · ':''}${esc(quiTxt(e))}</small></span>
+  return `<button class="ligne" data-a="evedit" data-id="${esc(e.id)}"><span class="txt">${esc(e.t)}<small>${e.f!==e.d?court(e.d)+' → '+court(e.f):''}${e.f!==e.d&&quiTxt(e)?' · ':''}${esc(quiTxt(e))}${e.src?'<br>Source : '+esc(e.src):''}</small></span>
     <span class="droite">${e.v?'<span class="badge verif">à vérifier</span> ':''}<span class="badge k-${e.k}">${TYPES[e.k]}</span></span></button>`;
 }
 function fenJour(d){
@@ -1027,7 +1055,7 @@ function fenDoutes(){
   calcule();
   if(!P.doutes.length){fermeFen();affiche(true);toast('Plus aucune question.');return}
   ouvreFen(`<h2>Le cours est-il maintenu ?</h2><p class="sous">Réponds quand tu le sais. Tant que tu n'as pas répondu, ces séances restent comptées, avec la mention « à confirmer ».</p>
-  ${P.doutes.map(d=>`<div class="question"><b>${esc(d.e.t)}</b><small>${esc(datesEvent(d.e))} · ${esc([...new Set(d.seances.map(i=>nomCourt(i.cl)))].join(', '))}</small><div class="actions" style="justify-content:flex-start">${boutonsDoute(d.e)}</div></div>`).join('')}
+  ${P.doutes.map(d=>`<div class="question"><b>${esc(d.e.t)}</b><small>${esc(datesEvent(d.e))} · ${esc([...new Set(d.seances.map(i=>nomCourt(i.cl)))].join(', '))}${d.e.src?'<br>Source : '+esc(d.e.src):''}</small><div class="actions" style="justify-content:flex-start">${boutonsDoute(d.e)}</div></div>`).join('')}
   <div class="actions"><button class="btn fort" data-a="ferme">Fermer</button></div>`);
 }
 const LIEUX_LISTE=()=>`<datalist id="m-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist>`;
@@ -1080,7 +1108,7 @@ function fenAjout(date){
 function fenEvent(id,date){
   const jour=date||auj();
   const e=id?E.events.find(x=>x.id===id):{d:jour,f:jour,t:'',k:'info',cl:ORDRE.slice()};
-  ouvreFen(`<h2>${id?'Modifier':'Ajouter'} un événement</h2><p class="sous">${e.v?'<span class="badge verif">à vérifier</span> Corrige si besoin, puis enregistre pour retirer cette mention.':'&nbsp;'}</p>
+  ouvreFen(`<h2>${id?'Modifier':'Ajouter'} un événement</h2><p class="sous">${e.v?'<span class="badge verif">à vérifier</span> Corrige si besoin, puis enregistre pour retirer cette mention.':e.src?'Source : '+esc(e.src):'&nbsp;'}</p>
   <label class="champ">Intitulé<input id="e-t" value="${esc(e.t)}"></label>
   <label class="champ">Du<input type="date" id="e-d" value="${e.d}"></label>
   <label class="champ">Au (inclus)<input type="date" id="e-f" value="${e.f}"></label>
