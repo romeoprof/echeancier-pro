@@ -83,7 +83,9 @@ table{border-collapse:separate;border-spacing:0}
 th,td{border-right:1px solid var(--ligne);border-bottom:1px solid var(--ligne);padding:0}
 thead th{position:sticky;top:0;background:#f0eee7;z-index:2;font-size:13px;padding:7px 0;min-width:108px}
 thead th:first-child{left:0;z-index:3;text-align:left;padding-left:10px}
-tbody th{position:sticky;left:0;z-index:1;text-align:left;padding:7px 10px;width:148px;min-width:148px;font-weight:400;background:var(--c)}
+tbody th{position:sticky;left:0;z-index:1;text-align:left;padding:0;width:148px;min-width:148px;font-weight:400;background:var(--c)}
+.tete-ligne{display:block;width:100%;height:100%;min-height:78px;text-align:left;padding:7px 10px}
+.tete-ligne em{font-style:normal;color:var(--lien);margin-left:2px}
 tbody th b{display:block;font-size:14.5px}
 tbody th span{display:block;font-size:13.5px;font-weight:600}
 tbody th small{display:block;font-size:12px;color:#46525d}
@@ -206,12 +208,15 @@ const CLASSES = {
   '6At': {nom:'6ème Athènes',  niv:6, c:'#E9E9E9'},
 };
 const ORDRE = Object.keys(CLASSES);
-const H1='8h15-10h05', H2='10h20-12h10', H3='14h40-16h45';
+const H1='8h15-10h05', H2='10h20-12h10', HV='13h45-14h40', H3='14h40-16h45';
+const VIE_CLASSE='Vie de classe';
+const CRENEAU_VC=()=>({id:'vc',j:2,h:HV,p:0,cl:'4Du',vc:true,t:[[VIE_CLASSE,''],[VIE_CLASSE,''],[VIE_CLASSE,'']]});
 const EXT='Extérieur', THI='Gymnase Thierry', OLY='Gymnase Olympie', PIS='Piscine', DOJ='Dojo';
 /* j : 1=lundi… 5=vendredi — p : null=chaque semaine, 1=semaine impaire (SI), 0=semaine paire (SP) */
 const CRENEAUX = () => [
   {id:'ma1',j:2,h:H1,p:null,cl:'3Va',t:[['RV-Javelot',EXT],['Handball',THI],['Danse',OLY]]},
   {id:'ma2',j:2,h:H2,p:null,cl:'3Vi',t:[['Handball',THI],['Danse',OLY],['RV-Javelot',EXT]]},
+  CRENEAU_VC(),
   {id:'ma3',j:2,h:H3,p:null,cl:'5Pr',t:[['Gym',OLY],['Lutte',OLY],['Natation',PIS]]},
   {id:'me1',j:3,h:H1,p:null,cl:'4Be',t:[['½ fond',EXT],['TdT',OLY],['Acro',OLY]]},
   {id:'me2',j:3,h:H2,p:1,cl:'3Va',t:[['RV-Javelot',EXT],['R&B',EXT],['R&B',EXT]]},
@@ -385,12 +390,24 @@ const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
 /* =========================================================
    ÉTAT
    ========================================================= */
-function etatNeuf(){return {v:1,s:{},plan:PLAN(),evM:EVAL_FIXE(),extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+function etatNeuf(){return {v:1,migr:2,s:{},plan:PLAN(),evM:EVAL_FIXE(),extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+/* Met à niveau des données déjà enregistrées, sans toucher à ce que l'utilisateur a saisi */
+let migree=false;
+function migre(o){
+  if((o.migr||1)<2){
+    if(Array.isArray(o.slots)&&!o.slots.some(s=>s.id==='vc')){
+      const i=o.slots.findIndex(s=>s.id==='ma3');
+      o.slots.splice(i<0?o.slots.length:i,0,CRENEAU_VC());
+    }
+    o.migr=2;migree=true;
+  }
+  return Object.assign(etatNeuf(),o);
+}
 let E=etatNeuf();
 let lectureOK=true;
 try{
   const b=localStorage.getItem(CLE);
-  if(b){const o=JSON.parse(b);if(o&&o.v===1)E=Object.assign(etatNeuf(),o)}
+  if(b){const o=JSON.parse(b);if(o&&o.v===1)E=migre(o)}
 }catch(e){lectureOK=false}
 function sauve(){
   try{localStorage.setItem(CLE,JSON.stringify(E))}
@@ -455,7 +472,10 @@ function syContenu(){
 function syAppliquer(texte){
   const o=JSON.parse(texte).etat;
   if(!o||o.v!==1||!Array.isArray(o.events)||!Array.isArray(o.slots))throw {code:'format'};
-  E=Object.assign(etatNeuf(),o);
+  const avant=migree;migree=false;
+  E=migre(o);
+  if(migree)SY.sale=true;
+  migree=avant;
   try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}
   if(!document.querySelector('.voile')&&V.vue!=='reg')affiche(true);
 }
@@ -550,19 +570,21 @@ function calcule(){
       const niv=CLASSES[s.cl].niv,tri=triDe(d,niv),a=s.t[tri-1];
       if(!a||!a[0])continue;
       const stop=evs.find(e=>e.k==='stop'&&e.cl.includes(s.cl));
-      items.push({id:d+'|'+s.id,date:d,cl:s.cl,act:a[0],lieu:a[1]||'',h:s.h,tri,p:s.p,bloque:stop||null});
+      items.push({id:d+'|'+s.id,date:d,cl:s.cl,act:a[0],lieu:a[1]||'',h:s.h,tri,p:s.p,vc:!!s.vc,bloque:stop||null});
     }
   }
   for(const x of E.extras){
     const niv=CLASSES[x.cl].niv;
     items.push({id:x.id,date:x.date,cl:x.cl,act:x.act,lieu:x.lieu||'',h:x.h,tri:triDe(x.date,niv),p:null,extra:true,bloque:null});
   }
-  const rangH=h=>[H1,H2,H3].indexOf(h);
+  const rangH=h=>[H1,H2,HV,H3].indexOf(h);
   items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:rangH(a.h)-rangH(b.h));
   const cycles=new Map(),aujd=auj();
   for(const it of items){
     const st=etatS(it.id);
     it.statut=st.st||'';it.note=st.n||'';it.force=!!st.force;
+    if(st.act){it.act=st.act;it.ponctuel=true}
+    if(st.lieu!=null)it.lieu=st.lieu;
     it.actif=(!it.bloque||it.force)&&it.statut!=='annule';
     it.cle=it.cl+'|'+it.act;
     if(!it.actif)continue;
@@ -585,10 +607,11 @@ function calcule(){
       let trop=[...evals].filter(i=>i>=c.lst.length).length;
       for(let i=c.lst.length-1;i>=0&&trop>0;i--)if(!evals.has(i)){evals.add(i);trop--}
     }else{
-      const cand=c.lst.filter(i=>i.date<=c.limite);
-      const reg=c.lst.filter(i=>!i.extra);
-      const nb=reg.length&&reg.every(i=>i.p!==null)?1:2;
-      cand.slice(-nb).forEach(i=>evals.add(i.n-1));
+      /* 2 évaluations par activité, la dernière dans la semaine qui précède
+         celle de la fin de saisie des notes. Pas d'évaluation pour la vie de classe
+         ni pour une séance ponctuelle ou de rattrapage. */
+      const finEval=ajoute(lundi(c.limite),-3);
+      c.lst.filter(i=>i.date<=finEval&&!i.extra&&!i.ponctuel&&!i.vc).slice(-2).forEach(i=>evals.add(i.n-1));
     }
     c.lst.forEach((it,i)=>{it.titre=(plan[i]&&plan[i].t)||'';it.eval=evals.has(i);it.apresLimite=it.date>c.limite;it.cycle=c});
     c.fait=c.lst.filter(i=>i.statut==='fait').length;
@@ -690,7 +713,7 @@ function vEch(){
   h+=`<div class="tableau"><table><thead><tr><th>Classe / activité</th>${Array.from({length:max},(_,i)=>`<th>S${i+1}</th>`).join('')}</tr></thead><tbody>`;
   for(const c of cyc){
     const cl=CLASSES[c.cl];
-    h+=`<tr style="--c:${cl.c}"><th><b>${esc(cl.nom)}</b><span>${esc(c.act)}</span><small>${c.fait}/${c.lst.length} faites${c.tris.size>1?' · sur '+[...c.tris].map(x=>'T'+x).join('+'):''}${c.annul?' · '+c.annul+' annulée'+(c.annul>1?'s':''):''}</small></th>`;
+    h+=`<tr style="--c:${cl.c}"><th><button class="tete-ligne" data-a="cycedit" data-cle="${esc(c.cle)}" aria-label="Modifier ${esc(c.act)}, ${esc(cl.nom)}"><b>${esc(cl.nom)}</b><span>${esc(c.act)} <em>✎</em></span><small>${c.fait}/${c.lst.length} faites${c.tris.size>1?' · sur '+[...c.tris].map(x=>'T'+x).join('+'):''}${c.annul?' · '+c.annul+' annulée'+(c.annul>1?'s':''):''}</small></button></th>`;
     for(let i=0;i<max;i++){
       const it=c.lst[i];
       if(!it){
@@ -706,7 +729,7 @@ function vEch(){
     h+='</tr>';
   }
   h+=`</tbody></table></div>
-  <div class="legende"><span><i style="background:rgba(27,122,75,.25)"></i>Effectuée</span><span><i style="background:var(--retard-fond);border:2px solid #e4a95b"></i>Passée, pas cochée</span><span><i style="background:#fff;border:3px solid var(--tete)"></i>Prochaine séance</span><span>Touche une case pour la modifier. Les cases pâles appartiennent à un autre trimestre.</span></div>`;
+  <div class="legende"><span><i style="background:rgba(27,122,75,.25)"></i>Effectuée</span><span><i style="background:var(--retard-fond);border:2px solid #e4a95b"></i>Passée, pas cochée</span><span><i style="background:#fff;border:3px solid var(--tete)"></i>Prochaine séance</span><span>Touche une case pour modifier la séance, ou un nom de classe (✎) pour changer l'activité. Les cases pâles appartiennent à un autre trimestre.</span></div>`;
   return h;
 }
 
@@ -725,7 +748,7 @@ function vEvals(){
     ...lim.filter(l=>V.evPassees||l.date>=a).map(l=>({d:l.date,o:1,l}))].sort((x,y)=>x.d<y.d?-1:x.d>y.d?1:x.o-y.o);
   let h=`<div class="barre"><h2>Évaluations <span class="sous">${evals.filter(i=>i.date>=a).length} à venir · ${passees.filter(i=>i.statut==='fait').length} faites</span></h2>
     ${passees.length?`<button class="btn pousse" data-a="evpass">${V.evPassees?'Masquer':'Voir'} les passées (${passees.length})</button>`:''}</div>
-    <p class="remarque">Celles du T1 viennent de ton échéancier. Pour un cycle sans évaluation choisie, l'app propose les dernières séances avant la fin de saisie des notes (2, ou 1 pour un créneau une semaine sur deux). Si une séance est annulée, le contenu et l'évaluation glissent sur la date suivante. Pour changer une évaluation, ouvre la séance.</p>`;
+    <p class="remarque">Celles du T1 viennent de ton échéancier. Ensuite, chaque activité a 2 évaluations : la dernière tombe dans la semaine qui précède celle de la fin de saisie des notes. Si une séance est annulée, le calcul se refait. Pour changer une évaluation, ouvre la séance.</p>`;
   let mois='';
   for(const x of lignes){
     const m=x.d.slice(0,7);
@@ -828,7 +851,7 @@ function vReg(){
     <div class="g-tri"><span></span><b>Fin T1</b><b>Fin T2</b><b>Fin T3</b>`;
   for(const n of [6,5,4,3]){h+=`<b>${n}e</b>`+[0,1,2].map(i=>`<input type="date" aria-label="Fin T${i+1} ${n}e" data-c="tri" data-n="${n}" data-i="${i}" value="${E.tri[n][i]}">`).join('')}
   h+=`</div><label class="champ" style="margin:12px 0 0">Dernier jour de cours de l'année<input type="date" data-c="fin" value="${E.fin}"></label></div>`;
-  h+=`<div class="bloc"><h3>Emploi du temps et activités</h3><p>Pour chaque créneau : l'activité et le lieu de chaque trimestre. SI = semaine impaire, SP = semaine paire. Les cases déjà cochées restent liées à leur date.</p>`;
+  h+=`<div class="bloc"><h3>Emploi du temps et activités</h3><p>Pour changer l'activité d'une classe, modifie-la ici, créneau par créneau et trimestre par trimestre. C'est aussi possible depuis l'onglet Échéancier (touche le nom de la classe) ou depuis une séance. SI = semaine impaire, SP = semaine paire.</p>`;
   for(const s of E.slots){
     h+=`<div class="creneau"><b>${JOURS_L[s.j][0].toUpperCase()+JOURS_L[s.j].slice(1)} ${esc(s.h)}${s.p===1?' (SI)':s.p===0?' (SP)':''} — ${esc(CLASSES[s.cl].nom)}</b>`;
     s.t.forEach((a,i)=>{h+=`<div class="l"><span class="tag-t t${i+1}" style="text-align:center">T${i+1}</span><input aria-label="Activité T${i+1}" data-c="slot" data-s="${s.id}" data-i="${i}" data-j="0" value="${esc(a[0])}"><input aria-label="Lieu T${i+1}" data-c="slot" data-s="${s.id}" data-i="${i}" data-j="1" value="${esc(a[1])}"></div>`});
@@ -857,14 +880,51 @@ function fenSeance(id){
     <button class="s-faire" data-a="st" data-id="${esc(id)}" data-v="" aria-pressed="${it.statut===''}">À faire</button>
     <button class="s-fait" data-a="st" data-id="${esc(id)}" data-v="fait" aria-pressed="${it.statut==='fait'}">Effectuée</button>
     <button class="s-annule" data-a="st" data-id="${esc(id)}" data-v="annule" aria-pressed="${it.statut==='annule'}">Annulée</button></div>`;
-  if(it.actif){
+  if(it.actif&&!it.vc){
     h+=`<button class="interr" data-a="evtog" data-id="${esc(id)}" aria-pressed="${!!it.eval}"><span>Évaluation</span><span>${it.eval?'OUI':'non'}</span></button>`;
     if(it.cycle&&it.cycle.manuel)h+=`<p class="remarque">Évaluations de ce cycle choisies à la main. <button class="lien" data-a="evauto" data-id="${esc(id)}">Revenir au calcul automatique</button></p>`;
     if(it.apresLimite&&it.eval)h+=`<p class="remarque att">Cette date tombe après la fin de saisie des notes (${esc(long(it.cycle.limite))}).</p>`;
-  }else h+=`<p class="remarque">Cette séance ne compte plus dans le cycle : les contenus et les évaluations glissent sur les dates suivantes.</p>`;
+  }else if(!it.actif)h+=`<p class="remarque">Cette séance ne compte plus dans le cycle : les contenus et les évaluations glissent sur les dates suivantes.</p>`;
+  h+=`<p class="remarque"><button class="lien" data-a="actedit" data-id="${esc(id)}">✎ Modifier l'activité ou le lieu</button></p>`;
   h+=`<label class="champ">Remarque (matériel, absents…)<textarea data-c="note" data-id="${esc(id)}">${esc(it.note)}</textarea></label>
   <div class="actions">${it.actif&&it.n>1?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n-2].id)}">‹ S${it.n-1}</button>`:''}${it.actif&&it.n<it.total?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n].id)}">S${it.n+1} ›</button>`:''}${it.extra?`<button class="btn danger" data-a="suppx" data-id="${esc(id)}">Supprimer</button>`:''}${it.bloque&&it.force?`<button class="btn" data-a="force" data-id="${esc(id)}">Annuler le rétablissement</button>`:''}<button class="btn fort" data-a="ferme">Fermer</button></div>`;
   ouvreFen(h);
+}
+const LIEUX_LISTE=()=>`<datalist id="m-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist>`;
+const ACTS_LISTE=()=>`<datalist id="m-acts">${[...new Set(E.slots.flatMap(s=>s.t.map(t=>t[0])))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist>`;
+/* Changer toute une activité d'une classe (depuis l'Échéancier) */
+function fenCycle(cle){
+  calcule();
+  const c=P.cycles.find(x=>x.cle===cle);if(!c)return fermeFen();
+  const dates=c.lst[0].date===c.lst[c.lst.length-1].date?court(c.lst[0].date):court(c.lst[0].date)+' → '+court(c.lst[c.lst.length-1].date);
+  ouvreFen(`<h2>Modifier l'activité</h2><p class="sous">${esc(CLASSES[c.cl].nom)} — ${c.lst.length} séance${c.lst.length>1?'s':''}, ${dates}</p>
+  <label class="champ">Activité<input id="m-act" list="m-acts" value="${esc(c.act)}" autocomplete="off">${ACTS_LISTE()}</label>
+  <label class="champ">Lieu<input id="m-lieu" list="m-lieux" value="${esc(c.lst[0].lieu)}" autocomplete="off">${LIEUX_LISTE()}</label>
+  <p class="remarque">Les thématiques, les évaluations et les séances cochées sont conservées.</p>
+  <div class="actions"><button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="cycsave" data-cle="${esc(cle)}">Enregistrer</button></div>`);
+}
+/* Changer l'activité d'une seule séance, ou de tout son cycle */
+function fenActivite(id){
+  calcule();
+  const it=P.byId.get(id);if(!it)return fermeFen();
+  const st=etatS(id);
+  ouvreFen(`<h2>Modifier l'activité</h2><p class="sous">${esc(CLASSES[it.cl].nom)} — ${esc(long(it.date))}</p>
+  <label class="champ">Activité<input id="m-act" list="m-acts" value="${esc(it.act)}" autocomplete="off">${ACTS_LISTE()}</label>
+  <label class="champ">Lieu<input id="m-lieu" list="m-lieux" value="${esc(it.lieu)}" autocomplete="off">${LIEUX_LISTE()}</label>
+  <div class="actions">${st.act||st.lieu!=null?`<button class="btn" data-a="actreset" data-id="${esc(id)}">Revenir à l'activité prévue</button>`:''}<button class="btn" data-a="ouvre" data-id="${esc(id)}">Annuler</button></div>
+  <div class="actions"><button class="btn" data-a="actsave" data-id="${esc(id)}" data-p="1">Cette séance seulement</button>${it.actif?`<button class="btn fort" data-a="actsave" data-id="${esc(id)}" data-p="0">Tout le cycle (${it.total} séances)</button>`:''}</div>`);
+}
+/* Renomme une activité partout : créneaux, rattrapages, thématiques et évaluations */
+function renommeCycle(cl,ancien,nouveau,lieu){
+  for(const s of E.slots)if(s.cl===cl)for(const t of s.t)if(t[0]===ancien){t[0]=nouveau;if(lieu!=null)t[1]=lieu}
+  for(const x of E.extras)if(x.cl===cl&&x.act===ancien){x.act=nouveau;if(lieu!=null)x.lieu=lieu}
+  for(const i of P.items)if(i.cl===cl&&i.act===ancien){const st=E.s[i.id];if(st&&st.act)st.act=nouveau;if(st&&lieu!=null)delete st.lieu}
+  const av=cl+'|'+ancien,ap=cl+'|'+nouveau;
+  if(av!==ap){
+    if(E.plan[av]&&!E.plan[ap])E.plan[ap]=E.plan[av];
+    if(E.evM[av]&&!E.evM[ap])E.evM[ap]=true;
+    delete E.plan[av];delete E.evM[av];
+  }
 }
 function fenAjout(date){
   const d=date||(()=>{const a=auj();return a<DEBUT?DEBUT:a})();
@@ -872,7 +932,7 @@ function fenAjout(date){
   <label class="champ">Date<input type="date" id="x-date" value="${d}"></label>
   <label class="champ">Classe<select id="x-cl">${ORDRE.map(c=>`<option value="${c}">${esc(CLASSES[c].nom)}</option>`).join('')}</select></label>
   <label class="champ">Activité<input id="x-act" list="x-acts" autocomplete="off"><datalist id="x-acts">${[...new Set(E.slots.flatMap(s=>s.t.map(t=>t[0])))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist></label>
-  <label class="champ">Horaire<select id="x-h">${[H1,H2,H3].map(h=>`<option>${h}</option>`).join('')}</select></label>
+  <label class="champ">Horaire<select id="x-h">${[H1,H2,HV,H3].map(h=>`<option>${h}</option>`).join('')}</select></label>
   <label class="champ">Lieu<input id="x-lieu" list="x-lieux" autocomplete="off"><datalist id="x-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist></label>
   <div class="actions"><button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="xsave">Ajouter</button></div>`);
 }
@@ -918,7 +978,7 @@ function importe(file){
       const o=JSON.parse(r.result);
       if(!o||o.v!==1||!Array.isArray(o.events)||!Array.isArray(o.slots)||!o.tri)throw 0;
       if(!confirm('Remplacer toutes les données de cet appareil par cette sauvegarde ?'))return;
-      E=Object.assign(etatNeuf(),o);sauve();affiche();toast('Sauvegarde restaurée.');
+      E=migre(o);sauve();affiche();toast('Sauvegarde restaurée.');
     }catch(e){toast("Ce fichier n'est pas une sauvegarde valide.")}
   };
   r.readAsText(file);
@@ -979,6 +1039,31 @@ const ACT={
     if(!confirm('Supprimer cette séance ?'))return;
     E.extras=E.extras.filter(x=>x.id!==b.dataset.id);delete E.s[b.dataset.id];sauve();fermeFen();affiche(true);
   },
+  cycedit(b){fenCycle(b.dataset.cle)},
+  cycsave(b){
+    const nv=$('#m-act').value.trim(),lieu=$('#m-lieu').value.trim(),cle=b.dataset.cle;
+    if(!nv){toast("Indique le nom de l'activité.");return}
+    const[cl,...r]=cle.split('|');
+    renommeCycle(cl,r.join('|'),nv,lieu);
+    sauve();fermeFen();affiche(true);toast('Activité modifiée.');
+  },
+  actedit(b){fenActivite(b.dataset.id)},
+  actsave(b){
+    const id=b.dataset.id,it=P.byId.get(id),nv=$('#m-act').value.trim(),lieu=$('#m-lieu').value.trim();
+    if(!nv){toast("Indique le nom de l'activité.");return}
+    if(b.dataset.p==='1'){
+      majS(id,'act',null);majS(id,'lieu',null);
+      calcule();
+      const prevu=P.byId.get(id);
+      if(nv!==prevu.act)majS(id,'act',nv);
+      if(lieu!==prevu.lieu)majS(id,'lieu',lieu);
+    }else{
+      const[cl,...r]=it.cle.split('|');
+      renommeCycle(cl,r.join('|'),nv,lieu);
+    }
+    sauve();fenSeance(id);affiche(true);toast('Activité modifiée.');
+  },
+  actreset(b){const id=b.dataset.id;majS(id,'act',null);majS(id,'lieu',null);sauve();fenSeance(id);affiche(true)},
   evnew(b){fenEvent(null,b.dataset.date)},
   evedit(b){fenEvent(b.dataset.id)},
   evsave(b){
@@ -1056,6 +1141,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 affiche();
+if(migree){migree=false;sauve()}
 setTimeout(syncNow,1000);
 if(!lectureOK)toast("Lecture des données impossible : le stockage de ce navigateur est bloqué.");
 
