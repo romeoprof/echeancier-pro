@@ -2,7 +2,7 @@
    puis mise à jour discrète en arrière-plan quand il y a du réseau.
    Après toute modification de l'application, changer VERSION. */
 const PREFIXE = 'echeancier-pro-';
-const VERSION = `${PREFIXE}4`;
+const VERSION = `${PREFIXE}5`;
 const FICHIERS = ['./', 'index.html', 'manifest.webmanifest', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
