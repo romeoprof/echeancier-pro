@@ -52,8 +52,16 @@ main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area
 .puce{font-size:12.5px;color:var(--doux);padding:3px 2px;line-height:1.25}
 .puce b{color:var(--encre);font-weight:600}
 .conge{background:#dfe5ee;border-radius:10px;padding:14px 10px;text-align:center;font-weight:600;color:#37465a;margin-bottom:8px}
-.seance{display:flex;align-items:stretch;border-radius:12px;margin-bottom:8px;border:1px solid rgba(0,0,0,.09);overflow:hidden;background:var(--c)}
-.seance .corps{flex:1;min-width:0;text-align:left;padding:9px 4px 9px 11px;min-height:64px}
+/* La hauteur suit la durée du créneau : 1,3 px par minute */
+.seance{display:flex;align-items:stretch;border-radius:12px;margin-bottom:8px;border:1px solid rgba(0,0,0,.09);overflow:hidden;background:var(--c);min-height:calc(var(--dur,110)*1.3px)}
+.seance .corps{flex:1;min-width:0;text-align:left;padding:9px 4px 9px 11px}
+.seance.bref .corps{padding:5px 2px 5px 10px}
+.seance.bref .cl{font-size:14px;line-height:1.2}
+.seance.bref .det{font-size:12px;line-height:1.25}
+.seance.bref .contenu{font-size:12.5px;line-height:1.2;margin:0}
+.seance.bref .raison{font-size:12px;line-height:1.2}
+.seance.bref .coche{flex-basis:44px}
+.seance.bref .rond-ck{width:26px;height:26px;font-size:15px}
 .seance .cl{font-weight:700;font-size:15.5px}
 .seance .act{font-weight:600}
 .seance .contenu{font-size:14px;margin:1px 0}
@@ -84,14 +92,22 @@ th,td{border-right:1px solid var(--ligne);border-bottom:1px solid var(--ligne);p
 thead th{position:sticky;top:0;background:#f0eee7;z-index:2;font-size:13px;padding:7px 0;min-width:108px}
 thead th:first-child{left:0;z-index:3;text-align:left;padding-left:10px}
 tbody th{position:sticky;left:0;z-index:1;text-align:left;padding:0;width:148px;min-width:148px;font-weight:400;background:var(--c)}
-.tete-ligne{display:block;width:100%;height:100%;min-height:78px;text-align:left;padding:7px 10px}
+.tete-ligne{display:block;width:100%;height:100%;min-height:var(--h,102px);text-align:left;padding:6px 10px;line-height:1.2}
+tr.bref .tete-ligne{padding:3px 8px;line-height:1.1}
+tr.bref .tete-ligne b,tr.bref .tete-ligne span{display:inline;font-size:12px}
+tr.bref .tete-ligne b::after{content:" · "}
+tr.bref .tete-ligne small{font-size:10.5px}
+tr.bref .cell{padding:1px 4px;gap:0}
+tr.bref .cell .tit{font-size:11px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+tr.bref .cell .ajout-t{display:none}
+tr.bref .cell .m{font-size:10.5px}
 .tete-ligne em{font-style:normal;color:var(--lien);margin-left:2px}
 tbody th b{display:block;font-size:14.5px}
 tbody th span{display:block;font-size:13.5px;font-weight:600}
 tbody th small{display:block;font-size:12px;color:#46525d}
-tbody td{background:var(--c);height:78px}
+tbody td{background:var(--c);height:var(--h,102px)}
 td.vide{background:#faf9f6}
-.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:100%;height:100%;min-height:78px;width:108px;padding:4px 5px;text-align:center;line-height:1.15;position:relative}
+.cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:100%;min-height:var(--h,102px);width:108px;padding:4px 5px;text-align:center;line-height:1.15;position:relative}
 .cell .tit{font-size:13px;font-weight:500}
 .cell .m{font-size:11px;color:#46525d}
 .cell .ajout-t{font-size:11.5px;color:#6b7680}
@@ -134,6 +150,9 @@ td.vide{background:#faf9f6}
 .compte b{font-size:24px;display:block}
 .compte small{font-size:12px;color:var(--doux)}
 .ligne.fini{opacity:.6}
+.ligne.bref{padding:3px 12px;font-size:14px}
+.ligne.bref .pastille{height:20px}
+.ligne.bref .txt small{display:inline;margin-left:6px}
 .mois.sans-cap{text-transform:none}
 .onglets .sel{background:var(--tete);color:#fff;border-color:transparent}
 .cal-l.c-doute{font-weight:700;color:#7a5c00}
@@ -223,9 +242,27 @@ const CLASSES = {
   '4Du': {nom:'4ème Dublin',   niv:4, c:'#FAE2D5'},
   '5Pr': {nom:'5ème Prague',   niv:5, c:'#F2CEED'},
   '6At': {nom:'6ème Athènes',  niv:6, c:'#E9E9E9'},
+  'AS':  {nom:'AS',            niv:'AS', c:'#D8E2F7'},
 };
 const ORDRE = Object.keys(CLASSES);
-const H1='8h15-10h05', H2='10h20-12h10', HV='13h45-14h40', H3='14h40-16h45';
+const H1='8h15-10h05', H2='10h20-12h10', HA='12h10-13h05', HM='12h45-15h45', HV='13h45-14h40', H3='14h40-16h45';
+const HORAIRES=[H1,H2,HA,HM,HV,H3];
+/* Durée d'un créneau en minutes : elle fixe sa taille à l'écran */
+function dureeMin(h){
+  const m=/(\d+)h(\d*)\s*-\s*(\d+)h(\d*)/.exec(h||'');
+  if(!m)return 110;
+  const d=(+m[3])*60+(+m[4]||0)-(+m[1])*60-(+m[2]||0);
+  return d>0?d:110;
+}
+const COURT_MAX=60;
+/* AS : pas d'évaluation (vc:true). Programmation provisoire, modifiable dans les Réglages. */
+const AS_DEBUT='2026-09-14', AS_MER_VIDE='Mercredi (sport à définir)';
+const CRENEAUX_AS=()=>[
+  {id:'as2',j:2,h:HA,p:0,cl:'AS',vc:true,debut:AS_DEBUT,t:[['Tennis de Table',''],['CrossFit',''],['Badminton minimes','']]},
+  {id:'as3',j:3,h:HM,p:1,cl:'AS',vc:true,debut:AS_DEBUT,t:[['Sports Co',''],[AS_MER_VIDE,''],[AS_MER_VIDE,'']]},
+  {id:'as4',j:4,h:HA,p:0,cl:'AS',vc:true,debut:AS_DEBUT,t:[['Pétanque',''],['Boxe Française',''],['Badminton benjamin','']]},
+  {id:'as5',j:5,h:HA,p:0,cl:'AS',vc:true,debut:AS_DEBUT,t:[['Hockey en salle',''],['Spikeball',''],['Tennis de Table (vendredi)','']]},
+];
 const VIE_CLASSE='Vie de classe';
 const CRENEAU_VC=()=>({id:'vc',j:2,h:HV,p:0,cl:'4Du',vc:true,t:[[VIE_CLASSE,''],[VIE_CLASSE,''],[VIE_CLASSE,'']]});
 const EXT='Extérieur', THI='Gymnase Thierry', OLY='Gymnase Olympie', PIS='Piscine', DOJ='Dojo';
@@ -244,6 +281,7 @@ const CRENEAUX = () => [
   {id:'ve1',j:5,h:H1,p:null,cl:'6At',t:[['Biathlon',EXT],['Natation',PIS],['TdT',OLY]]},
   {id:'ve2',j:5,h:H2,p:0,cl:'5Pr',t:[['Gym',OLY],['C.O',EXT],['C.O',EXT]]},
   {id:'ve3',j:5,h:H3,p:0,cl:'4Du',t:[['½ fond',EXT],['Sauvetage',PIS],['Sauvetage',PIS]]},
+  ...CRENEAUX_AS(),
 ];
 /* Fin de chaque trimestre par niveau = date de fin de saisie des notes du calendrier */
 const TRIMESTRES = () => ({
@@ -251,6 +289,7 @@ const TRIMESTRES = () => ({
   5:['2026-11-18','2027-02-12','2027-06-02'],
   4:['2026-11-25','2027-02-05','2027-06-02'],
   3:['2026-11-25','2027-02-05','2027-05-26'],
+  AS:['2026-11-25','2027-02-12','2027-06-09'],
 });
 const DERNIER_JOUR = '2027-06-22';
 const N3=[3], N6=[6];
@@ -407,7 +446,7 @@ const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
 /* =========================================================
    ÉTAT
    ========================================================= */
-function etatNeuf(){return {v:1,migr:3,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+function etatNeuf(){return {v:1,migr:4,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
 /* Met à niveau des données déjà enregistrées, sans toucher à ce que l'utilisateur a saisi */
 let migree=false;
 function migre(o){
@@ -426,6 +465,14 @@ function migre(o){
       if(e&&(e.k==='info'||e.v)){e.k='doute';e.v=false;e.p=s.p;e.cl=s.cl}
     }
     o.migr=3;migree=true;
+  }
+  if(o.migr<4){
+    /* Ajout de l'AS : créneaux, dates de trimestre, et événements qui touchaient toutes les classes */
+    if(Array.isArray(o.slots))for(const s of CRENEAUX_AS())if(!o.slots.some(x=>x.id===s.id))o.slots.push(s);
+    if(o.tri&&!o.tri.AS)o.tri.AS=TRIMESTRES().AS;
+    const six=ORDRE.filter(c=>c!=='AS');
+    if(Array.isArray(o.events))for(const e of o.events)if(Array.isArray(e.cl)&&six.every(c=>e.cl.includes(c))&&!e.cl.includes('AS'))e.cl.push('AS');
+    o.migr=4;migree=true;
   }
   return Object.assign(etatNeuf(),o);
 }
@@ -623,7 +670,7 @@ function calcule(){
     const evs=parJour[d]||[];
     if(evs.some(e=>e.k==='vac'||e.k==='ferie'))continue;
     for(const s of E.slots){
-      if(s.j!==j||(s.p!==null&&s.p!==par))continue;
+      if(s.j!==j||(s.p!==null&&s.p!==par)||(s.debut&&d<s.debut))continue;
       const niv=CLASSES[s.cl].niv,tri=triDe(d,niv),a=s.t[tri-1];
       if(!a||!a[0])continue;
       const stop=evs.find(e=>e.k==='stop'&&e.cl.includes(s.cl));
@@ -636,7 +683,7 @@ function calcule(){
     const niv=CLASSES[x.cl].niv;
     items.push({id:x.id,date:x.date,cl:x.cl,act:x.act,lieu:x.lieu||'',h:x.h,tri:triDe(x.date,niv),p:null,extra:true,bloque:null});
   }
-  const rangH=h=>[H1,H2,HV,H3].indexOf(h);
+  const rangH=h=>HORAIRES.indexOf(h);
   items.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:rangH(a.h)-rangH(b.h));
   const cycles=new Map(),aujd=auj();
   for(const it of items){
@@ -761,12 +808,23 @@ function bandeauxAlerte(){
 /* ---------- Semaine ---------- */
 function carte(it){
   const cl=CLASSES[it.cl],bloqueActif=it.bloque&&!it.force,ann=it.statut==='annule';
+  const dur=dureeMin(it.h),bref=dur<=COURT_MAX;
+  const titreBref=it.cl==='AS'?'AS · '+it.act:cl.nom+' · '+it.act;
   if(bloqueActif||ann){
-    return `<div class="seance off" style="--c:${cl.c}"><button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
-      <div class="cl">${esc(cl.nom)}</div><div class="act">${esc(it.act)}</div>
+    return `<div class="seance off ${bref?'bref':''}" style="--c:${cl.c};--dur:${dur}"><button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
+      ${bref?`<div class="cl">${esc(titreBref)}</div>`:`<div class="cl">${esc(cl.nom)}</div><div class="act">${esc(it.act)}</div>`}
       <div class="raison">${bloqueActif?esc(it.bloque.t):'Séance annulée'+(it.motif?' : '+esc(it.motif):'')}</div></button></div>`;
   }
-  return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c}">
+  if(bref)return `<div class="seance bref ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
+    <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
+      <div class="cl">${esc(titreBref)}</div>
+      <div class="det">${esc(it.h)} · S${it.n}/${it.total}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}</div>
+      ${it.titre?`<div class="contenu">${esc(it.titre)}</div>`:''}
+      ${it.doute?`<div class="det a-confirmer">À confirmer : ${esc(it.doute.t)}</div>`:''}
+    </button>
+    <button class="coche" data-a="coche" data-id="${esc(it.id)}" aria-label="${it.statut==='fait'?'Marquer à faire':'Marquer effectuée'}"><span class="rond-ck">${it.statut==='fait'?'✓':''}</span></button>
+  </div>`;
+  return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
       <div class="cl">${esc(cl.nom)} ${it.eval?'<span class="tag-eval">EVAL</span>':''}</div>
       <div class="act">${esc(it.act)} · S${it.n}/${it.total} <span class="tag-t t${it.tri}">T${it.tri}</span></div>
@@ -824,7 +882,8 @@ function vEch(){
   h+=`<div class="tableau"><table><thead><tr><th>Classe / activité</th>${Array.from({length:max},(_,i)=>`<th>S${i+1}</th>`).join('')}</tr></thead><tbody>`;
   for(const c of cyc){
     const cl=CLASSES[c.cl];
-    h+=`<tr style="--c:${cl.c}"><th><button class="tete-ligne" data-a="cycedit" data-cle="${esc(c.cle)}" aria-label="Modifier ${esc(c.act)}, ${esc(cl.nom)}"><b>${esc(cl.nom)}</b><span>${esc(c.act)} <em>✎</em></span><small>${c.fait}/${c.lst.length} faites${c.tris.size>1?' · sur '+[...c.tris].map(x=>'T'+x).join('+'):''}${c.annul?' · '+c.annul+' annulée'+(c.annul>1?'s':''):''}</small>${c.prochaine?`<small class="reste">${esc(texteReste(c))}</small>`:''}</button></th>`;
+    const durL=Math.max(...c.lst.map(i=>dureeMin(i.h))),brefL=durL<=COURT_MAX;
+    h+=`<tr class="${brefL?'bref':''}" style="--c:${cl.c};--h:${Math.round(durL*0.93)}px"><th><button class="tete-ligne" data-a="cycedit" data-cle="${esc(c.cle)}" aria-label="Modifier ${esc(c.act)}, ${esc(cl.nom)}"><b>${esc(cl.nom)}</b><span>${esc(c.act)} <em>✎</em></span><small>${c.fait}/${c.lst.length} faites${c.tris.size>1?' · sur '+[...c.tris].map(x=>'T'+x).join('+'):''}${c.annul?' · '+c.annul+' annulée'+(c.annul>1?'s':''):''}</small>${c.prochaine?`<small class="reste">${esc(texteReste(c))}</small>`:''}</button></th>`;
     for(let i=0;i<max;i++){
       const it=c.lst[i];
       if(!it){
@@ -958,7 +1017,7 @@ function fenJour(d){
   for(const e of evs)if(e.k==='doute'&&d>=auj()&&se.some(i=>i.doute===e))h+=`<p class="remarque att"><b>Le cours est-il maintenu ?</b> ${esc(e.t)}</p><div class="actions" style="justify-content:flex-start;margin-bottom:12px">${boutonsDoute(e)}</div>`;
   if(se.length){
     h+='<div class="mois">Séances</div>';
-    h+=se.map(i=>{const off=(i.bloque&&!i.force)||i.statut==='annule';return `<button class="ligne" data-a="ouvre" data-id="${esc(i.id)}" style="--c:${CLASSES[i.cl].c}"><span class="pastille"></span><span class="txt"><b>${esc(CLASSES[i.cl].nom)}</b> — ${esc(i.act)}<small>${esc(i.h)}${i.titre?' · '+esc(i.titre):''}${off?' · pas de séance':''}</small></span><span class="droite">${i.eval&&!off?'<span class="tag-eval">EVAL</span> ':''}${i.statut==='fait'?'✓':''}</span></button>`}).join('');
+    h+=se.map(i=>{const off=(i.bloque&&!i.force)||i.statut==='annule';return `<button class="ligne ${dureeMin(i.h)<=COURT_MAX?'bref':''}" data-a="ouvre" data-id="${esc(i.id)}" style="--c:${CLASSES[i.cl].c};min-height:${Math.round(dureeMin(i.h)*0.5)}px"><span class="pastille"></span><span class="txt"><b>${esc(CLASSES[i.cl].nom)}</b> — ${esc(i.act)}<small>${esc(i.h)}${i.titre?' · '+esc(i.titre):''}${off?' · pas de séance':''}</small></span><span class="droite">${i.eval&&!off?'<span class="tag-eval">EVAL</span> ':''}${i.statut==='fait'?'✓':''}</span></button>`}).join('');
   }
   h+=`<div class="actions"><button class="btn" data-a="evnew" data-date="${d}">＋ Ajouter un événement</button><button class="btn fort" data-a="ferme">Fermer</button></div>`;
   ouvreFen(h);
@@ -989,7 +1048,7 @@ function vReg(){
   h+=`<div class="bloc"><h3>Hors connexion</h3><p id="etatsw">${lieu?"Fichier ouvert directement : pour l'installer, il faut le mettre en ligne (voir LISEZ-MOI).":window.__offlinePret?'✓ Prête à fonctionner hors connexion.':'Mise en cache en cours… (connexion nécessaire la première fois)'}<br>${instal?"✓ Application lancée depuis l'écran d'accueil.":"Pour l'installer : menu Partager de Chrome puis « Sur l'écran d'accueil », et ouvre-la ensuite toujours depuis cette icône."}</p></div>`;
   h+=`<div class="bloc"><h3>Dates des trimestres</h3><p>Dernier jour de chaque trimestre par niveau, pris sur les fins de saisie des notes. Le jour suivant, l'activité de l'emploi du temps change. Les évaluations sont placées avant ces dates.</p>
     <div class="g-tri"><span></span><b>Fin T1</b><b>Fin T2</b><b>Fin T3</b>`;
-  for(const n of [6,5,4,3]){h+=`<b>${n}e</b>`+[0,1,2].map(i=>`<input type="date" aria-label="Fin T${i+1} ${n}e" data-c="tri" data-n="${n}" data-i="${i}" value="${E.tri[n][i]}">`).join('')}
+  for(const n of [6,5,4,3,'AS']){h+=`<b>${n==='AS'?'AS':n+'e'}</b>`+[0,1,2].map(i=>`<input type="date" aria-label="Fin T${i+1} ${n}" data-c="tri" data-n="${n}" data-i="${i}" value="${E.tri[n][i]}">`).join('')}
   h+=`</div><label class="champ" style="margin:12px 0 0">Dernier jour de cours de l'année<input type="date" data-c="fin" value="${E.fin}"></label></div>`;
   h+=`<div class="bloc"><h3>Emploi du temps et activités</h3><p>Pour changer l'activité d'une classe, modifie-la ici, créneau par créneau et trimestre par trimestre. C'est aussi possible depuis l'onglet Échéancier (touche le nom de la classe) ou depuis une séance. SI = semaine impaire, SP = semaine paire.</p>`;
   for(const s of E.slots){
@@ -1101,7 +1160,7 @@ function fenAjout(date){
   <label class="champ">Date<input type="date" id="x-date" value="${d}"></label>
   <label class="champ">Classe<select id="x-cl">${ORDRE.map(c=>`<option value="${c}">${esc(CLASSES[c].nom)}</option>`).join('')}</select></label>
   <label class="champ">Activité<input id="x-act" list="x-acts" autocomplete="off"><datalist id="x-acts">${[...new Set(E.slots.flatMap(s=>s.t.map(t=>t[0])))].map(a=>`<option value="${esc(a)}">`).join('')}</datalist></label>
-  <label class="champ">Horaire<select id="x-h">${[H1,H2,HV,H3].map(h=>`<option>${h}</option>`).join('')}</select></label>
+  <label class="champ">Horaire<select id="x-h">${HORAIRES.map(h=>`<option>${h}</option>`).join('')}</select></label>
   <label class="champ">Lieu<input id="x-lieu" list="x-lieux" autocomplete="off"><datalist id="x-lieux">${[EXT,THI,OLY,PIS,DOJ].map(a=>`<option value="${a}">`).join('')}</datalist></label>
   <div class="actions"><button class="btn" data-a="ferme">Annuler</button><button class="btn fort" data-a="xsave">Ajouter</button></div>`);
 }
