@@ -138,6 +138,23 @@ td.vide{background:#faf9f6}
 .verif{background:#fff1a8;color:#6b5500}
 .vide-msg{color:var(--doux);padding:30px 10px;text-align:center}
 
+/* Météo et mémos */
+.det.meteo{color:#2f4f6f!important}
+.det.meteo.pluie{color:#1d4ed8!important;font-weight:700}
+.bandeau.meteo-alerte{background:#e3eefc;border-color:#b8cff0}
+.memo{display:flex;align-items:center;gap:8px;background:#fffbe8;border:1px solid #efe2a8;border-radius:9px;padding:4px 4px 4px 8px;margin:0 0 6px;font-size:13.5px;min-height:40px}
+.memo input{width:22px;height:22px;flex:0 0 22px;margin:0}
+.memo span{flex:1;min-width:0}
+.memo.fait span{text-decoration:line-through;color:var(--doux)}
+.memo.retard{border-color:#e4a95b;background:var(--retard-fond)}
+.memo small{color:var(--retard);font-weight:600}
+.memo-x{flex:0 0 36px;height:36px;font-size:20px;color:var(--doux)}
+.memo-plus{font-size:13px;color:var(--lien);font-weight:600;min-height:36px;padding:0 4px}
+.memo-ajout{display:flex;gap:6px;margin:6px 0 12px;flex-wrap:wrap}
+.memo-ajout input{flex:1 1 180px;min-height:44px;padding:6px 10px;border:1px solid var(--ligne);border-radius:9px;font-size:16px;background:#fff}
+.memo-ajout input[type=date]{flex:0 0 auto}
+.memos{margin-top:6px;font-weight:400}
+
 /* Questions et compteur */
 .bandeau.doute{background:#fff6cc;border-color:#ecd98a}
 .bandeau.perdue{background:#fbe6e9;border-color:#e8b5bd}
@@ -446,7 +463,7 @@ const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
 /* =========================================================
    ÉTAT
    ========================================================= */
-function etatNeuf(){return {v:1,migr:4,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+function etatNeuf(){return {v:1,migr:4,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},memos:[],extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
 /* Met à niveau des données déjà enregistrées, sans toucher à ce que l'utilisateur a saisi */
 let migree=false;
 function migre(o){
@@ -540,9 +557,86 @@ function syContenu(){
     seances:P.items.map(i=>({date:i.date,horaire:i.h,classe:CLASSES[i.cl].nom,activite:i.act,lieu:i.lieu,trimestre:i.tri,
       seance:i.n||null,total:i.total||null,thematique:i.titre||'',evaluation:!!i.eval,statut:statut(i),
       raison:i.bloque&&!i.force?i.bloque.t:i.statut==='annule'?i.motif:'',a_confirmer:i.doute&&i.actif?i.doute.t:'',remarque:i.note||''})),
+    memos:(E.memos||[]).slice().sort((a,b)=>a.d<b.d?-1:1).map(m=>{const s=m.sid&&P.byId.get(m.sid);return {date:m.d,texte:m.t,fait:!!m.fait,seance:s?CLASSES[s.cl].nom+' — '+s.act+' ('+s.h+')':''}}),
     restantes:P.cycles.filter(c=>c.prochaine).map(c=>({classe:CLASSES[c.cl].nom,activite:c.act,prochaine_evaluation:c.prochaine.date,seances_avant:c.avant,dont_a_confirmer:c.avantDoute})),
     etat:E},null,1);
 }
+/* =========================================================
+   MÉTÉO DES SÉANCES EN EXTÉRIEUR (Open-Meteo, sans compte)
+   Seule la position du collège est envoyée. La prévision est gardée
+   sur l'appareil (non synchronisée) et rafraîchie au plus une fois par heure.
+   ========================================================= */
+const METEO={lat:48.4597,lon:1.7714}, CLE_METEO=CLE+'-meteo';
+let MT=null;
+try{MT=JSON.parse(localStorage.getItem(CLE_METEO)||'null')}catch(e){}
+async function majMeteo(force){
+  if(!navigator.onLine||(!force&&MT&&Date.now()-MT.t<3600e3))return;
+  try{
+    const u='https://api.open-meteo.com/v1/forecast?latitude='+METEO.lat+'&longitude='+METEO.lon+'&hourly=temperature_2m,precipitation_probability,weather_code&timezone=Europe%2FParis&forecast_days=16';
+    const r=await fetch(u,{cache:'no-store'});
+    if(!r.ok)return;
+    const j=await r.json(),h={};
+    j.hourly.time.forEach((t,i)=>{h[t]=[j.hourly.temperature_2m[i],j.hourly.precipitation_probability[i],j.hourly.weather_code[i]]});
+    MT={t:Date.now(),h};
+    try{localStorage.setItem(CLE_METEO,JSON.stringify(MT))}catch(e){}
+    if(!document.querySelector('.voile')&&V.vue==='semaine')affiche(true);
+  }catch(e){}
+}
+const estExterieur=it=>/^ext/i.test((it.lieu||'').trim());
+const iconeMeteo=c=>c>=95?'⛈️':((c>=71&&c<=77)||c===85||c===86)?'🌨️':c>=51?'🌧️':c>=45?'🌫️':c>=2?'☁️':c===1?'⛅':'☀️';
+/* Prévision sur les heures du cours : température moyenne, pluie la plus probable */
+function meteoSeance(it){
+  if(!MT||!estExterieur(it)||it.date<auj())return null;
+  const m=/(\d+)h(\d*)\s*-\s*(\d+)h(\d*)/.exec(it.h||'');
+  if(!m)return null;
+  const fin=(+m[3])+((+m[4]||0)>0?1:0),vals=[];
+  for(let x=+m[1];x<fin;x++){const v=MT.h[it.date+'T'+String(x).padStart(2,'0')+':00'];if(v)vals.push(v)}
+  if(!vals.length)return null;
+  const p=Math.max(...vals.map(v=>v[1]||0)),c=Math.max(...vals.map(v=>v[2]||0));
+  return {t:Math.round(vals.reduce((s,v)=>s+v[0],0)/vals.length),p,i:iconeMeteo(c)};
+}
+function ligneMeteo(it){
+  if((it.bloque&&!it.force)||it.statut==='annule')return '';
+  const m=meteoSeance(it);
+  return m?`<div class="det meteo ${m.p>=50?'pluie':''}">${m.i} ${m.t}°C · pluie ${m.p} %</div>`:'';
+}
+/* Alerte : pluie probable sur une séance en extérieur dans les 4 prochains jours */
+function bandeauMeteo(){
+  if(!MT)return '';
+  const a=auj(),lim=ajoute(a,4);
+  const l=P.items.filter(i=>i.actif&&i.statut!=='fait'&&i.date>=a&&i.date<=lim&&estExterieur(i)).map(i=>({i,m:meteoSeance(i)})).filter(x=>x.m&&x.m.p>=50);
+  if(!l.length)return '';
+  return `<div class="bandeau meteo-alerte"><p><b>Pluie probable en extérieur :</b> ${l.map(x=>esc(court(x.i.date)+' '+x.i.h.split('-')[0]+' — '+nomCourt(x.i.cl)+', '+x.i.act+' ('+x.m.p+' %)')).join(' · ')}</p></div>`;
+}
+
+/* =========================================================
+   MÉMOS ET MATÉRIEL : petites tâches liées à une date ou à une séance
+   ========================================================= */
+const nbMemosAFaire=()=>(E.memos||[]).filter(m=>!m.fait).length;
+function badgeMemos(it){const n=(E.memos||[]).filter(m=>m.sid===it.id&&!m.fait).length;return n?' · 📌 '+sPluriel(n,'mémo'):''}
+function ligneMemo(m){
+  const retard=!m.fait&&m.d<auj();
+  return `<div class="memo ${m.fait?'fait':''} ${retard?'retard':''}"><input type="checkbox" data-c="memo" data-id="${esc(m.id)}" ${m.fait?'checked':''} aria-label="Fait"><span>${esc(m.t)}${retard?' <small>(en retard)</small>':''}</span><button class="memo-x" data-a="memodel" data-id="${esc(m.id)}" aria-label="Supprimer le mémo">×</button></div>`;
+}
+function bandeauMemos(){
+  const r=(E.memos||[]).filter(m=>!m.fait&&m.d<auj());
+  return r.length?`<div class="bandeau"><p><b>${sPluriel(r.length,'mémo')} en retard</b> : ${esc(r.slice(0,3).map(m=>m.t).join(' · '))}${r.length>3?'…':''}</p><button class="btn" data-a="memos">Voir les mémos</button></div>`:'';
+}
+function fenMemos(date){
+  const l=(E.memos||[]).slice().sort((a,b)=>(a.fait-b.fait)||(a.d<b.d?-1:a.d>b.d?1:0));
+  let h=`<h2>Mémos et matériel</h2><p class="sous">À cocher quand c'est fait. Un mémo peut aussi être ajouté depuis une séance.</p>
+  <div class="memo-ajout"><input id="m-nouveau" placeholder="Ex. : Réserver le car du cross" autocomplete="off"><input type="date" id="m-date" value="${date||auj()}"><button class="btn fort" data-a="memoadd">Ajouter</button></div>
+  <div class="liste-memos">`;
+  let jour='';
+  for(const m of l){
+    if(m.d!==jour){jour=m.d;h+=`<div class="mois sans-cap">${esc(court(m.d))}</div>`}
+    h+=ligneMemo(m);
+  }
+  if(!l.length)h+='<p class="remarque">Aucun mémo pour le moment.</p>';
+  h+=`</div><div class="actions">${l.some(m=>m.fait)?'<button class="btn" data-a="memopurge">Effacer les mémos faits</button>':''}<button class="btn fort" data-a="ferme">Fermer</button></div>`;
+  ouvreFen(h);
+}
+
 /* Un événement venu de l'extérieur doit être bien formé, sinon il est ignoré */
 function evenementValide(e){
   const jour=/^\d{4}-\d\d-\d\d$/;
@@ -818,7 +912,8 @@ function carte(it){
   if(bref)return `<div class="seance bref ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
       <div class="cl">${esc(titreBref)}</div>
-      <div class="det">${esc(it.h)} · S${it.n}/${it.total}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}</div>
+      <div class="det">${esc(it.h)} · S${it.n}/${it.total}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}${badgeMemos(it)}</div>
+      ${ligneMeteo(it)}
       ${it.titre?`<div class="contenu">${esc(it.titre)}</div>`:''}
       ${it.doute?`<div class="det a-confirmer">À confirmer : ${esc(it.doute.t)}</div>`:''}
     </button>
@@ -829,7 +924,8 @@ function carte(it){
       <div class="cl">${esc(cl.nom)} ${it.eval?'<span class="tag-eval">EVAL</span>':''}</div>
       <div class="act">${esc(it.act)} · S${it.n}/${it.total} <span class="tag-t t${it.tri}">T${it.tri}</span></div>
       ${it.titre?`<div class="contenu">${esc(it.titre)}</div>`:''}
-      <div class="det">${esc(it.h)}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}${it.extra?' · rattrapage':''}</div>
+      <div class="det">${esc(it.h)}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}${it.extra?' · rattrapage':''}${badgeMemos(it)}</div>
+      ${ligneMeteo(it)}
       ${!it.eval&&it.cycle&&it.cycle.prochaine&&it.date<it.cycle.prochaine.date?`<div class="det reste">Éval : ${sPluriel(it.cycle.lst.filter(x=>x.statut!=='fait'&&x.date>=it.date&&x.date<it.cycle.prochaine.date).length,'séance')} restante${it.cycle.lst.filter(x=>x.statut!=='fait'&&x.date>=it.date&&x.date<it.cycle.prochaine.date).length>1?'s':''}</div>`:''}
       ${it.doute?`<div class="det a-confirmer">À confirmer : ${esc(it.doute.t)}</div>`:''}
     </button>
@@ -840,18 +936,19 @@ function vSemaine(){
   const l=V.lundi,sem=semaineISO(l),a=auj();
   const jours=[0,1,2,3,4].map(i=>ajoute(l,i));
   const its=P.items.filter(i=>i.date>=l&&i.date<=jours[4]);
-  const lundiUtile=its.some(i=>i.date===l)||(P.parJour[l]||[]).some(e=>e.k!=='info');
+  const lundiUtile=its.some(i=>i.date===l)||(P.parJour[l]||[]).some(e=>e.k!=='info')||(E.memos||[]).some(m=>m.d===l);
   const montre=jours.filter((d,i)=>i>0||lundiUtile);
   const ret=enRetard().length;
   let h='';
-  h+=bandeauxAlerte();
+  h+=bandeauxAlerte()+bandeauMeteo()+bandeauMemos();
   if(ret)h+=`<div class="bandeau"><p><b>${ret} séance${ret>1?'s':''} passée${ret>1?'s':''}</b> pas encore cochée${ret>1?'s':''}.</p><button class="btn" data-a="toutfait">Tout marquer effectué</button></div>`;
   h+=`<div class="barre">
     <button class="btn rond" data-a="sem" data-n="-7" aria-label="Semaine précédente">‹</button>
     <h2>Semaine ${sem} <span class="sous">${pars(l).getDate()} ${MOIS_C[pars(l).getMonth()]} – ${pars(jours[4]).getDate()} ${MOIS_C[pars(jours[4]).getMonth()]} · ${sem%2?'impaire (SI)':'paire (SP)'}</span></h2>
     <button class="btn rond" data-a="sem" data-n="7" aria-label="Semaine suivante">›</button>
     ${l!==lundiDefaut()?'<button class="btn" data-a="semauj">Cette semaine</button>':''}
-    <button class="btn pousse" data-a="ajout" data-date="${l<a&&a<=jours[4]?a:jours[1]}">＋ Séance</button></div>`;
+    <button class="btn pousse" data-a="memos">Mémos${nbMemosAFaire()?' ('+nbMemosAFaire()+')':''}</button>
+    <button class="btn" data-a="ajout" data-date="${l<a&&a<=jours[4]?a:jours[1]}">＋ Séance</button></div>`;
   h+=`<div class="semaine" style="--cols:${montre.length}">`;
   for(const d of montre){
     const evs=P.parJour[d]||[];
@@ -861,6 +958,8 @@ function vSemaine(){
     if(conge)h+=`<div class="conge">${esc(conge.t)}</div>`;
     const lst=its.filter(i=>i.date===d);
     h+=lst.map(carte).join('');
+    h+=(E.memos||[]).filter(m=>m.d===d).map(ligneMemo).join('');
+    h+=`<button class="memo-plus" data-a="memonew" data-d="${d}">＋ mémo</button>`;
     const pu=evs.filter(e=>e.k==='info'||(e.k==='doute'&&!lst.some(i=>i.doute===e))||(e.k==='stop'&&!lst.some(i=>i.bloque===e)));
     h+=pu.map(e=>`<div class="puce">• ${e.k==='stop'?'<b>'+esc(e.t)+'</b>':esc(e.t)}${e.v?' <span class="badge verif">à vérifier</span>':''}</div>`).join('');
     h+='</section>';
@@ -1086,6 +1185,10 @@ function fenSeance(id){
     if(it.cycle&&it.cycle.triMax>1)h+=`<p class="remarque"><button class="lien" data-a="evauto" data-id="${esc(id)}">Recalculer les évaluations de cette activité</button></p>`;
     if(it.apresLimite&&it.eval)h+=`<p class="remarque att">Cette date tombe après la fin de saisie des notes (${esc(long(it.cycle.limite))}).</p>`;  }else if(!it.actif)h+=`<p class="remarque att"><b>Séance annulée${it.motif?' : '+esc(it.motif):''}.</b> Elle ne compte plus dans le cycle : les thématiques passent aux séances suivantes, et les évaluations gardent leur date. Touche « À faire » pour la rétablir.</p>${blocEvalPerdue(it)}`;
   h+=`<p class="remarque"><button class="lien" data-a="actedit" data-id="${esc(id)}">✎ Modifier l'activité ou le lieu</button></p>`;
+  const mt=meteoSeance(it);
+  if(mt)h+=`<p class="remarque ${mt.p>=50?'att':''}">${mt.i} Météo prévue : ${mt.t}°C, risque de pluie ${mt.p} %${mt.p>=50?' — prévois une solution de repli':''}.</p>`;
+  h+=`<div class="champ">Mémos de cette séance<div class="memos">${(E.memos||[]).filter(m=>m.sid===id).map(ligneMemo).join('')||'<p class="remarque" style="margin:4px 0">Aucun mémo.</p>'}</div>
+    <div class="memo-ajout"><input id="m-nouveau" placeholder="Ex. : Réserver la piscine, sortir les vélos…" autocomplete="off"><button class="btn" data-a="memoadd" data-sid="${esc(id)}" data-d="${it.date}">Ajouter</button></div></div>`;
   h+=`<label class="champ">Remarque (matériel, absents…)<textarea data-c="note" data-id="${esc(id)}">${esc(it.note)}</textarea></label>
   <div class="actions">${it.actif&&it.n>1?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n-2].id)}">‹ S${it.n-1}</button>`:''}${it.actif&&it.n<it.total?`<button class="btn" data-a="ouvre" data-id="${esc(it.cycle.lst[it.n].id)}">S${it.n+1} ›</button>`:''}${it.extra?`<button class="btn danger" data-a="suppx" data-id="${esc(id)}">Supprimer</button>`:''}${it.bloque&&it.force?`<button class="btn" data-a="force" data-id="${esc(id)}">Annuler le rétablissement</button>`:''}<button class="btn fort" data-a="ferme">Fermer</button></div>`;
   ouvreFen(h);
@@ -1265,6 +1368,28 @@ const ACT={
     delete E.evIds[b.dataset.id];sauve();fermeFen();affiche(true);
   },
   evvue(b){V.evVue=b.dataset.v;affiche()},
+  memos(){fenMemos()},
+  memonew(b){fenMemos(b.dataset.d)},
+  memoadd(b){
+    const n=$('#m-nouveau'),t=n.value.trim();
+    if(!t){toast('Écris d’abord le mémo.');n.focus();return}
+    const d=b.dataset.d||($('#m-date')&&$('#m-date').value)||auj();
+    E.memos=E.memos||[];
+    E.memos.push({id:'mm'+(E.seq++),t,d,sid:b.dataset.sid||null,fait:false});
+    sauve();
+    if(b.dataset.sid)fenSeance(b.dataset.sid);else fenMemos(d);
+    affiche(true);
+  },
+  memodel(b){
+    E.memos=(E.memos||[]).filter(m=>m.id!==b.dataset.id);sauve();
+    if(document.querySelector('.liste-memos'))fenMemos();
+    else{const s=document.querySelector('.fen [data-a=memoadd][data-sid]');if(s)fenSeance(s.dataset.sid)}
+    affiche(true);
+  },
+  memopurge(){
+    if(!confirm('Effacer tous les mémos déjà faits ?'))return;
+    E.memos=(E.memos||[]).filter(m=>!m.fait);sauve();fenMemos();affiche(true);
+  },
   doutes(){fenDoutes()},
   repond(b){
     const e=E.events.find(x=>x.id===b.dataset.id);if(!e)return;
@@ -1377,6 +1502,11 @@ document.addEventListener('input',ev=>{
 document.addEventListener('change',ev=>{
   const t=ev.target,c=t.dataset.c;
   if(t.id==='imp'&&t.files[0]){importe(t.files[0]);return}
+  if(c==='memo'){
+    const m=(E.memos||[]).find(x=>x.id===t.dataset.id);
+    if(m){m.fait=t.checked;sauve();if(!document.querySelector('.voile'))affiche(true);else if(document.querySelector('.liste-memos'))fenMemos()}
+    return;
+  }
   if(c==='tri'&&t.value){E.tri[t.dataset.n][+t.dataset.i]=t.value;sauve()}
   if(c==='fin'&&t.value){E.fin=t.value;sauve()}
   if(c==='slot'){
@@ -1395,11 +1525,15 @@ let jourVu=auj();
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden&&auj()!==jourVu){jourVu=auj();V.lundi=lundiDefaut();affiche(true)}
   syncNow();
+  if(!document.hidden)majMeteo();
 });
+addEventListener('online',()=>majMeteo());
+setInterval(()=>majMeteo(),15*60*1000);
 
 affiche();
 if(migree){migree=false;sauve()}
 setTimeout(syncNow,1000);
+setTimeout(majMeteo,1500);
 if(!lectureOK)toast("Lecture des données impossible : le stockage de ce navigateur est bloqué.");
 
 /* Hors connexion */
