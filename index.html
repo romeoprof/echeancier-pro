@@ -15,7 +15,8 @@
 <link rel="icon" href="icon-192.png">
 <style>
 :root{
-  --fond:#f4f3ee; --carte:#fff; --encre:#1d2933; --doux:#5d6873; --ligne:#d9d6cc; --tete:#1f3a4d;
+  --fond:#eef1f5; --carte:#fff; --encre:#1b2733; --doux:#5b6775; --ligne:#d8dee6; --tete:#1f3a4d;
+  --ombre:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
   --fait:#1b7a4b; --eval:#a3162e; --retard:#b45309; --retard-fond:#fdf0dc; --lien:#14618f;
   --t1:#e6a100; --t2:#0a94cc; --t3:#5f9e26;
 }
@@ -26,18 +27,19 @@ button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0}
 h1,h2,h3,p{margin:0}
 header{position:sticky;top:0;z-index:20;background:var(--tete);color:#fff;padding:env(safe-area-inset-top) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
-nav{display:flex;gap:2px;align-items:stretch}
-nav button{flex:1 1 0;min-height:52px;font-weight:600;font-size:15px;color:#c9d6df;border-bottom:3px solid transparent;padding:0 4px}
-nav button[aria-current=page]{color:#fff;border-bottom-color:#ffc94d}
+nav{display:flex;gap:6px;align-items:center;padding:6px 0}
+nav button{flex:1 1 0;min-height:42px;font-weight:600;font-size:15px;color:#c9d6df;border-radius:10px;padding:0 4px;transition:background .15s}
+nav button[aria-current=page]{color:#1f3a4d;background:#fff}
 nav button.reg{flex:0 0 56px;font-size:22px;position:relative}
 nav button.reg[data-sync=att]::after,nav button.reg[data-sync=err]::after{content:"";position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%;background:#ffb020}
 nav button.reg[data-sync=err]::after{background:#ff5a5a}
 main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));max-width:1400px;margin:0 auto}
+main.vue-semaine{padding-bottom:calc(6px + env(safe-area-inset-bottom))}
 .barre{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .barre h2{font-size:20px;line-height:1.2}
 .barre .sous{color:var(--doux);font-size:14px;font-weight:400;display:block;margin-top:1px}
 .pousse{margin-left:auto}
-.btn{min-height:44px;padding:0 14px;border-radius:10px;background:var(--carte);border:1px solid var(--ligne);font-weight:600;font-size:15px;white-space:nowrap}
+.btn{min-height:44px;padding:0 14px;border-radius:10px;background:var(--carte);border:1px solid var(--ligne);font-weight:600;font-size:15px;white-space:nowrap;box-shadow:0 1px 1px rgba(16,24,40,.04)}
 .btn.fort{background:var(--tete);color:#fff;border-color:var(--tete)}
 .btn.danger{color:var(--eval);border-color:#e2b3bb}
 .btn.rond{width:44px;padding:0;font-size:22px;line-height:1}
@@ -46,15 +48,31 @@ main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area
 .bandeau p{flex:1 1 240px}
 
 /* Semaine */
-.semaine{display:grid;gap:10px;grid-template-columns:repeat(var(--cols),minmax(0,1fr));align-items:start}
-.jour h3{font-size:15px;padding:6px 8px;border-radius:8px;background:#e7e5dc;margin-bottom:8px}
-.jour.ajd h3{background:var(--tete);color:#fff}
-.puce{font-size:12.5px;color:var(--doux);padding:3px 2px;line-height:1.25}
+.semaine{display:grid;gap:12px;grid-template-columns:repeat(var(--cols),minmax(0,1fr));align-items:start}
+.jour h3{display:flex;align-items:baseline;gap:6px;padding:2px 2px 6px;margin-bottom:8px;border-bottom:2px solid var(--ligne)}
+.jour h3 .jn{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--doux)}
+.jour h3 .jd{font-size:22px;font-weight:800;line-height:1}
+.jour h3 .memo-plus{margin-left:auto;min-height:30px;font-size:12.5px}
+.jour.ajd h3{border-bottom-color:var(--tete)}
+.jour.ajd h3 .jd{color:#fff;background:var(--tete);border-radius:8px;padding:2px 7px}
+.puce{font-size:12px;color:var(--doux);padding:2px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .puce b{color:var(--encre);font-weight:600}
-.conge{background:#dfe5ee;border-radius:10px;padding:14px 10px;text-align:center;font-weight:600;color:#37465a;margin-bottom:8px}
-/* La hauteur suit la durée du créneau : 1,3 px par minute */
-.seance{display:flex;align-items:stretch;border-radius:12px;margin-bottom:8px;border:1px solid rgba(0,0,0,.09);overflow:hidden;background:var(--c);min-height:calc(var(--dur,110)*1.3px)}
-.seance .corps{flex:1;min-width:0;text-align:left;padding:9px 4px 9px 11px}
+.conge{background:#e1e8f2;border-radius:12px;padding:14px 10px;text-align:center;font-weight:600;color:#37465a;margin-bottom:8px}
+/* La hauteur suit la durée du créneau ; --k (pixels par minute) s'ajuste à l'écran */
+.seance{display:flex;align-items:stretch;border-radius:12px;margin-bottom:6px;border:1px solid rgba(16,24,40,.08);overflow:hidden;position:relative;box-shadow:var(--ombre);
+  background:var(--c);background:color-mix(in srgb,var(--c) 55%,#fff);min-height:calc(var(--dur,110)*var(--k,1.3)*1px)}
+.seance::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c);background:color-mix(in srgb,var(--c) 70%,#1f3a4d)}
+.seance .corps{flex:1;min-width:0;text-align:left;padding:8px 4px 8px 13px;display:flex;flex-direction:column;justify-content:center;gap:1px}
+.semaine.serre .seance .corps{padding-top:4px;padding-bottom:4px}
+.semaine.serre .seance .cl{font-size:14px}
+.semaine.serre .seance .det{font-size:12px;line-height:1.2}
+.semaine.serre .seance .contenu{font-size:12.5px;line-height:1.2}
+.alertes{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.alertes button{min-height:36px;padding:0 12px;border-radius:999px;font-size:13.5px;font-weight:600;background:#fff;border:1px solid var(--ligne);box-shadow:var(--ombre)}
+.alertes .a-perdue{background:#fbe6e9;border-color:#e8b5bd;color:#8a1328}
+.alertes .a-doute{background:#fff6cc;border-color:#ecd98a;color:#6b5100}
+.alertes .a-pluie{background:#e3eefc;border-color:#b8cff0;color:#1d4ed8}
+.alertes .a-memo,.alertes .a-retard{background:var(--retard-fond);border-color:#efd3a6;color:#7a3d10}
 .seance.bref .corps{padding:5px 2px 5px 10px}
 .seance.bref .cl{font-size:14px;line-height:1.2}
 .seance.bref .det{font-size:12px;line-height:1.25}
@@ -69,10 +87,12 @@ main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area
 .seance .coche{flex:0 0 56px;display:flex;align-items:center;justify-content:center}
 .rond-ck{width:32px;height:32px;border-radius:50%;border:2px solid #65717c;background:#fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700}
 .seance.fait .rond-ck{background:var(--fait);border-color:var(--fait)}
-.seance.fait .corps{opacity:.72}
-.seance.retard{box-shadow:inset 4px 0 0 var(--retard)}
+.seance.fait .corps{opacity:.65}
+.seance.fait::before{background:var(--fait)}
+.seance.retard{box-shadow:inset 0 0 0 2px #e4a95b,var(--ombre)}
 .seance.retard .rond-ck{border-color:var(--retard)}
-.seance.off{background:#ececea}
+.seance.off{background:repeating-linear-gradient(135deg,#f1f2f4 0 8px,#e8eaee 8px 16px)}
+.seance.off::before{background:#b9c0c8}
 .seance.off .cl,.seance.off .act{text-decoration:line-through;color:#6c747b}
 .seance .raison{font-size:13px;color:#7a3d10;font-weight:600}
 .tag-eval{display:inline-block;background:var(--eval);color:#fff;font-size:11.5px;font-weight:800;padding:1px 6px;border-radius:5px;letter-spacing:.3px;vertical-align:1px}
@@ -601,10 +621,61 @@ function ligneMeteo(it){
   return m?`<div class="det meteo ${m.p>=50?'pluie':''}">${m.i} ${m.t}°C · pluie ${m.p} %</div>`:'';
 }
 /* Alerte : pluie probable sur une séance en extérieur dans les 4 prochains jours */
-function bandeauMeteo(){
-  if(!MT)return '';
+function pluiesProches(){
+  if(!MT)return [];
   const a=auj(),lim=ajoute(a,4);
-  const l=P.items.filter(i=>i.actif&&i.statut!=='fait'&&i.date>=a&&i.date<=lim&&estExterieur(i)).map(i=>({i,m:meteoSeance(i)})).filter(x=>x.m&&x.m.p>=50);
+  return P.items.filter(i=>i.actif&&i.statut!=='fait'&&i.date>=a&&i.date<=lim&&estExterieur(i)).map(i=>({i,m:meteoSeance(i)})).filter(x=>x.m&&x.m.p>=50);
+}
+/* Une seule ligne de pastilles à la place des bandeaux empilés : la semaine reste visible en entier */
+function alertesCompactes(){
+  const ch=[],pl=pluiesProches(),mr=(E.memos||[]).filter(m=>!m.fait&&m.d<auj()).length,ret=enRetard().length;
+  if(P.perdues.length)ch.push(['perdue','⚠️ '+sPluriel(P.perdues.length,'évaluation')+' sans cours']);
+  if(P.doutes.length)ch.push(['doute','❓ '+P.doutes.length+' cours à confirmer']);
+  if(pl.length)ch.push(['pluie','🌧️ Pluie '+court(pl[0].i.date)+' '+pl[0].i.h.split('-')[0]+(pl.length>1?' (+'+(pl.length-1)+')':'')]);
+  if(mr)ch.push(['memo','📌 '+sPluriel(mr,'mémo')+' en retard']);
+  if(ret)ch.push(['retard','⏳ '+ret+' non cochée'+(ret>1?'s':'')]);
+  return ch.length?`<div class="alertes">${ch.map(([k,t])=>`<button class="a-${k}" data-a="alertes">${esc(t)}</button>`).join('')}</div>`:'';
+}
+function fenAlertes(){
+  calcule();
+  const ret=enRetard().length;
+  let h=bandeauxAlerte()+bandeauMeteo()+bandeauMemos();
+  if(ret)h+=`<div class="bandeau"><p><b>${ret} séance${ret>1?'s':''} passée${ret>1?'s':''}</b> pas encore cochée${ret>1?'s':''}.</p><button class="btn" data-a="toutfait">Tout marquer effectué</button></div>`;
+  if(!h){fermeFen();affiche(true);return}
+  ouvreFen(`<div class="alertes-fen"><h2>À traiter</h2><p class="sous">Touche une réponse : la liste se met à jour.</p>${h}<div class="actions"><button class="btn fort" data-a="ferme">Fermer</button></div></div>`);
+}
+/* Ajuste l'échelle (pixels par minute) pour que toute la semaine tienne à l'écran */
+function ajusteSemaine(){
+  const s=document.querySelector('.semaine');
+  if(!s)return;
+  s.classList.remove('serre');
+  s.style.setProperty('--k','1.3');
+  if(innerWidth<700)return;
+  const bas=parseFloat(getComputedStyle($('#main')).paddingBottom)||6;
+  const dispo=innerHeight-(s.getBoundingClientRect().top+scrollY)-bas-4;
+  const cols=[...s.querySelectorAll('.jour')];
+  for(let essai=0;essai<8;essai++){
+    const trop=cols.some(c=>c.offsetHeight>dispo);
+    if(!trop)break;
+    let k=Infinity;
+    for(const c of cols){
+      const cartes=[...c.querySelectorAll('.seance')];
+      const min=cartes.reduce((t,x)=>t+(+x.style.getPropertyValue('--dur')||110),0);
+      if(!min)continue;
+      const fixe=c.offsetHeight-cartes.reduce((t,x)=>t+x.offsetHeight,0);
+      k=Math.min(k,(dispo-fixe)/min);
+    }
+    if(!isFinite(k))break;
+    const cur=+s.style.getPropertyValue('--k');
+    k=Math.max(.45,Math.min(k,cur*.97));
+    s.style.setProperty('--k',k.toFixed(3));
+    if(k<1)s.classList.add('serre');
+    if(k<=.45)break;
+  }
+}
+addEventListener('resize',()=>{clearTimeout(ajusteSemaine.t);ajusteSemaine.t=setTimeout(ajusteSemaine,120)});
+function bandeauMeteo(){
+  const l=pluiesProches();
   if(!l.length)return '';
   return `<div class="bandeau meteo-alerte"><p><b>Pluie probable en extérieur :</b> ${l.map(x=>esc(court(x.i.date)+' '+x.i.h.split('-')[0]+' — '+nomCourt(x.i.cl)+', '+x.i.act+' ('+x.m.p+' %)')).join(' · ')}</p></div>`;
 }
@@ -876,6 +947,8 @@ function affiche(garde){
     if(t2){const s=t2.querySelector('.cell.suiv');if(s){t2.scrollLeft=Math.max(0,s.getBoundingClientRect().left-t2.getBoundingClientRect().left-220)}}
   }
   if(P.fige){P.fige=false;sauve()}
+  $('#main').className='vue-'+V.vue;
+  if(V.vue==='semaine')ajusteSemaine();
 }
 const sPluriel=(n,mot)=>n+' '+mot+(n>1?'s':'');
 function texteReste(c){
@@ -938,10 +1011,7 @@ function vSemaine(){
   const its=P.items.filter(i=>i.date>=l&&i.date<=jours[4]);
   const lundiUtile=its.some(i=>i.date===l)||(P.parJour[l]||[]).some(e=>e.k!=='info')||(E.memos||[]).some(m=>m.d===l);
   const montre=jours.filter((d,i)=>i>0||lundiUtile);
-  const ret=enRetard().length;
-  let h='';
-  h+=bandeauxAlerte()+bandeauMeteo()+bandeauMemos();
-  if(ret)h+=`<div class="bandeau"><p><b>${ret} séance${ret>1?'s':''} passée${ret>1?'s':''}</b> pas encore cochée${ret>1?'s':''}.</p><button class="btn" data-a="toutfait">Tout marquer effectué</button></div>`;
+  let h=alertesCompactes();
   h+=`<div class="barre">
     <button class="btn rond" data-a="sem" data-n="-7" aria-label="Semaine précédente">‹</button>
     <h2>Semaine ${sem} <span class="sous">${pars(l).getDate()} ${MOIS_C[pars(l).getMonth()]} – ${pars(jours[4]).getDate()} ${MOIS_C[pars(jours[4]).getMonth()]} · ${sem%2?'impaire (SI)':'paire (SP)'}</span></h2>
@@ -954,12 +1024,11 @@ function vSemaine(){
     const evs=P.parJour[d]||[];
     const conge=evs.find(e=>e.k==='vac'||e.k==='ferie');
     const dj=pars(d);
-    h+=`<section class="jour ${d===a?'ajd':''}"><h3>${JOURS_L[dj.getDay()][0].toUpperCase()+JOURS_L[dj.getDay()].slice(1)} ${dj.getDate()}</h3>`;
+    h+=`<section class="jour ${d===a?'ajd':''}"><h3><span class="jn">${JOURS_L[dj.getDay()]}</span><span class="jd">${dj.getDate()}</span><button class="memo-plus" data-a="memonew" data-d="${d}" aria-label="Ajouter un mémo le ${esc(long(d))}">＋ mémo</button></h3>`;
     if(conge)h+=`<div class="conge">${esc(conge.t)}</div>`;
     const lst=its.filter(i=>i.date===d);
     h+=lst.map(carte).join('');
     h+=(E.memos||[]).filter(m=>m.d===d).map(ligneMemo).join('');
-    h+=`<button class="memo-plus" data-a="memonew" data-d="${d}">＋ mémo</button>`;
     const pu=evs.filter(e=>e.k==='info'||(e.k==='doute'&&!lst.some(i=>i.doute===e))||(e.k==='stop'&&!lst.some(i=>i.bloque===e)));
     h+=pu.map(e=>`<div class="puce">• ${e.k==='stop'?'<b>'+esc(e.t)+'</b>':esc(e.t)}${e.v?' <span class="badge verif">à vérifier</span>':''}</div>`).join('');
     h+='</section>';
@@ -1368,6 +1437,7 @@ const ACT={
     delete E.evIds[b.dataset.id];sauve();fermeFen();affiche(true);
   },
   evvue(b){V.evVue=b.dataset.v;affiche()},
+  alertes(){fenAlertes()},
   memos(){fenMemos()},
   memonew(b){fenMemos(b.dataset.d)},
   memoadd(b){
@@ -1396,8 +1466,10 @@ const ACT={
     const liste=!!document.querySelector('.question'),ouvert=document.querySelector('.fen');
     e.k=b.dataset.v==='oui'?'info':'stop';e.v=false;
     sauve();
-    if(liste)fenDoutes();else if(ouvert)fermeFen();
+    const dansAlertes=!!document.querySelector('.alertes-fen');
+    if(liste)fenDoutes();else if(ouvert&&!dansAlertes)fermeFen();
     affiche(true);
+    if(dansAlertes)fenAlertes();
     toast(b.dataset.v==='oui'?'Cours maintenu : '+e.t:'Pas de cours : '+e.t);
   },
   force(b){const id=b.dataset.id;majS(id,'force',!etatS(id).force);sauve();fenSeance(id);affiche(true)},
@@ -1406,6 +1478,7 @@ const ACT={
     if(!confirm('Marquer '+l.length+' séance(s) passée(s) comme effectuée(s) ?'))return;
     const avant=JSON.stringify(E.s);
     l.forEach(i=>majS(i.id,'st','fait'));sauve();affiche(true);
+    if(document.querySelector('.alertes-fen'))fenAlertes();
     toast(l.length+' séances marquées effectuées.','Annuler',()=>{E.s=JSON.parse(avant);sauve();affiche(true)});
   },
   ajout(b){fenAjout(b.dataset.date)},
