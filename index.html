@@ -31,6 +31,14 @@ nav{display:flex;gap:6px;align-items:center;padding:6px 0}
 nav button{flex:1 1 0;min-height:42px;font-weight:600;font-size:15px;color:#c9d6df;border-radius:10px;padding:0 4px;transition:background .15s}
 nav button[aria-current=page]{color:#1f3a4d;background:#fff}
 nav button.reg{flex:0 0 56px;font-size:22px;position:relative}
+nav button.cloche{font-size:20px}
+nav button.cloche .nb{position:absolute;top:2px;right:4px;min-width:20px;height:20px;border-radius:10px;background:#e5484d;color:#fff;font-size:12px;font-weight:800;line-height:20px;padding:0 5px}
+.notif{border:1px solid var(--ligne);border-radius:12px;padding:10px 12px;margin-bottom:10px;background:#fff}
+.notif.neuve{border-color:#b8cff0;background:#f3f8ff}
+.notif-t{display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-bottom:6px}
+.notif-t small{color:var(--doux);white-space:nowrap}
+.notif-txt{white-space:pre-wrap;font-size:14px;line-height:1.45}
+.alertes .a-notif{background:#e8f0ff;border-color:#b8cff0;color:#1f3a8a}
 nav button.reg[data-sync=att]::after,nav button.reg[data-sync=err]::after{content:"";position:absolute;top:10px;right:10px;width:10px;height:10px;border-radius:50%;background:#ffb020}
 nav button.reg[data-sync=err]::after{background:#ff5a5a}
 main{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));max-width:1400px;margin:0 auto}
@@ -483,7 +491,12 @@ const ecart=(a,b)=>Math.round((pars(b)-pars(a))/864e5);
 /* =========================================================
    ÉTAT
    ========================================================= */
-function etatNeuf(){return {v:1,migr:4,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},memos:[],extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
+/* Semaine impaire (1) ou paire (0) du collège : l'alternance continue d'une semaine
+   à l'autre, comme dans Pronote. Les numéros ISO, eux, enchaînent deux semaines
+   impaires au passage 2026-2027 (semaine 53 puis semaine 1). */
+const REF_SI='2026-09-07';
+function parite(d){const n=Math.round(ecart(REF_SI,lundi(d))/7);return ((1+n)%2+2)%2}
+function etatNeuf(){return {v:1,migr:5,s:{},plan:PLAN(),evM:EVAL_FIXE(),evC:{},evIds:{},mVus:{},memos:[],notifs:[],extras:[],events:EVENEMENTS(),slots:CRENEAUX(),tri:TRIMESTRES(),fin:DERNIER_JOUR,seq:1000,sauve:null}}
 /* Met à niveau des données déjà enregistrées, sans toucher à ce que l'utilisateur a saisi */
 let migree=false;
 function migre(o){
@@ -510,6 +523,13 @@ function migre(o){
     const six=ORDRE.filter(c=>c!=='AS');
     if(Array.isArray(o.events))for(const e of o.events)if(Array.isArray(e.cl)&&six.every(c=>e.cl.includes(c))&&!e.cl.includes('AS'))e.cl.push('AS');
     o.migr=4;migree=true;
+  }
+  if(o.migr<5){
+    /* Correction de l'alternance SI/SP à partir de janvier : les évaluations calculées
+       sur les anciennes dates de 2027 sont refaites. Celles du T1 (tableau Word) restent. */
+    if(o.evIds)for(const id of Object.keys(o.evIds))if(id.slice(0,10)>='2027-01-01')delete o.evIds[id];
+    if(o.evC)for(const k of Object.keys(o.evC))if(!(o.evM&&o.evM[k]))delete o.evC[k];
+    o.migr=5;migree=true;
   }
   return Object.assign(etatNeuf(),o);
 }
@@ -629,12 +649,22 @@ function pluiesProches(){
 /* Une seule ligne de pastilles à la place des bandeaux empilés : la semaine reste visible en entier */
 function alertesCompactes(){
   const ch=[],pl=pluiesProches(),mr=(E.memos||[]).filter(m=>!m.fait&&m.d<auj()).length,ret=enRetard().length;
+  const nl=(E.notifs||[]).filter(n=>!n.lu);
+  if(nl.length)ch.push(['notif','🔔 '+(nl.length>1?nl.length+' nouveaux bilans':'Nouveau bilan : '+nl[0].t)]);
   if(P.perdues.length)ch.push(['perdue','⚠️ '+sPluriel(P.perdues.length,'évaluation')+' sans cours']);
   if(P.doutes.length)ch.push(['doute','❓ '+P.doutes.length+' cours à confirmer']);
   if(pl.length)ch.push(['pluie','🌧️ Pluie '+court(pl[0].i.date)+' '+pl[0].i.h.split('-')[0]+(pl.length>1?' (+'+(pl.length-1)+')':'')]);
   if(mr)ch.push(['memo','📌 '+sPluriel(mr,'mémo')+' en retard']);
   if(ret)ch.push(['retard','⏳ '+ret+' non cochée'+(ret>1?'s':'')]);
-  return ch.length?`<div class="alertes">${ch.map(([k,t])=>`<button class="a-${k}" data-a="alertes">${esc(t)}</button>`).join('')}</div>`:'';
+  return ch.length?`<div class="alertes">${ch.map(([k,t])=>`<button class="a-${k}" data-a="${k==='notif'?'notifs':'alertes'}">${esc(t)}</button>`).join('')}</div>`:'';
+}
+/* Fil des bilans envoyés par la tâche planifiée */
+function fenNotifs(){
+  const l=(E.notifs||[]).slice().sort((a,b)=>a.id<b.id?1:-1);
+  const h=l.length?l.map(n=>`<div class="notif ${n.lu?'':'neuve'}"><div class="notif-t"><b>${esc(n.t)}</b><small>${esc(court(n.d))}</small></div><div class="notif-txt">${esc(n.txt)}</div></div>`).join('')
+    :'<p class="remarque">Aucun bilan pour le moment. Le prochain arrivera après le passage de ta tâche planifiée, dès que l\'iPad aura du réseau.</p>';
+  ouvreFen(`<h2>🔔 Bilans</h2><p class="sous">Envoyés par ta tâche planifiée (mails, Pronote, préparation de la semaine).</p>${h}<div class="actions"><button class="btn fort" data-a="ferme">Fermer</button></div>`);
+  if(l.some(n=>!n.lu)){for(const n of E.notifs)n.lu=true;sauve()}
 }
 function fenAlertes(){
   calcule();
@@ -716,15 +746,30 @@ function evenementValide(e){
 }
 /* Les événements ajoutés par la tâche du samedi ont un identifiant « m-… ».
    Ils sont repris une seule fois : un événement supprimé ici ne revient pas. */
+/* Bilan écrit par la tâche planifiée : identifiant « n-… », texte simple */
+function notifValide(n){
+  return !!n&&typeof n.id==='string'&&n.id.startsWith('n-')&&/^\d{4}-\d\d-\d\d$/.test(n.d||'')&&typeof n.t==='string'&&typeof n.txt==='string';
+}
+const propreNotif=n=>({id:n.id,d:n.d,t:n.t.slice(0,200),txt:n.txt.slice(0,6000),lu:!!n.lu});
+function rangeNotifs(l){return l.sort((a,b)=>a.id<b.id?1:-1).slice(0,40)}
 function syFusion(texte){
-  let distants=[];
-  try{distants=JSON.parse(texte).etat.events||[]}catch(e){return}
-  for(const e of distants){
+  let et={};
+  try{et=JSON.parse(texte).etat||{}}catch(e){return}
+  for(const e of (et.events||[])){
     if(!e||typeof e.id!=='string'||!e.id.startsWith('m-')||E.mVus[e.id]||!evenementValide(e))continue;
     E.mVus[e.id]=true;
     if(!E.events.some(x=>x.id===e.id))E.events.push(e);
   }
+  E.notifs=E.notifs||[];
+  let nouv=0;
+  for(const n of (et.notifs||[])){
+    if(!notifValide(n)||E.mVus[n.id])continue;
+    E.mVus[n.id]=true;
+    if(!E.notifs.some(x=>x.id===n.id)){E.notifs.push(propreNotif(n));nouv++}
+  }
+  E.notifs=rangeNotifs(E.notifs);
   try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}
+  if(nouv)setTimeout(()=>toast('🔔 Nouveau bilan reçu'),400);
 }
 function syAppliquer(texte){
   const o=JSON.parse(texte).etat;
@@ -732,6 +777,10 @@ function syAppliquer(texte){
   o.events=o.events.filter(evenementValide);
   o.mVus=o.mVus||{};
   for(const e of o.events)if(e.id.startsWith('m-'))o.mVus[e.id]=true;
+  const dejaLus=new Set((E.notifs||[]).map(n=>n.id));
+  o.notifs=rangeNotifs((Array.isArray(o.notifs)?o.notifs:[]).filter(notifValide).map(propreNotif));
+  for(const n of o.notifs)o.mVus[n.id]=true;
+  if(o.notifs.some(n=>!n.lu&&!dejaLus.has(n.id)))setTimeout(()=>toast('🔔 Nouveau bilan reçu'),400);
   const avant=migree;migree=false;
   E=migre(o);
   if(migree)SY.sale=true;
@@ -831,7 +880,7 @@ function calcule(){
   const items=[];
   for(let d=DEBUT;d<=E.fin;d=ajoute(d,1)){
     const j=dow(d);if(j>5)continue;
-    const par=semaineISO(d)%2;
+    const par=parite(d);
     const evs=parJour[d]||[];
     if(evs.some(e=>e.k==='vac'||e.k==='ferie'))continue;
     for(const s of E.slots){
@@ -889,6 +938,8 @@ function calcule(){
        Par défaut : 2 évaluations, la dernière dans la semaine qui précède celle de la
        fin de saisie des notes. Au T1 : celles du tableau de l'enseignant. */
     if(!E.evC[c.cle]){
+      /* Nouveau calcul : on repart de zéro pour cette activité */
+      for(const i of items)if(i.cle===c.cle||(i.cl+'|'+i.actPrevu)===c.cle)delete E.evIds[i.id];
       if(E.evM[c.cle])plan.forEach((p,i)=>{if(p&&p.e&&c.lst[i])E.evIds[c.lst[i].id]=true});
       else{
         const finEval=ajoute(lundi(c.limite),-3);
@@ -935,7 +986,8 @@ const ONGLETS=[['semaine','Semaine'],['ech','Échéancier'],['evals','Évaluatio
 
 function affiche(garde){
   calcule();
-  $('#nav').innerHTML=ONGLETS.map(([k,l])=>`<button data-a="vue" data-k="${k}" class="${k==='reg'?'reg':''}" ${k==='reg'?'aria-label="Réglages"':''} ${V.vue===k?'aria-current="page"':''}>${l}</button>`).join('');
+  const nonLus=(E.notifs||[]).filter(n=>!n.lu).length;
+  $('#nav').innerHTML=ONGLETS.map(([k,l])=>(k==='reg'?`<button class="reg cloche" data-a="notifs" aria-label="Bilans${nonLus?', '+nonLus+' non lu'+(nonLus>1?'s':''):''}">🔔${nonLus?`<span class="nb">${nonLus}</span>`:''}</button>`:'')+`<button data-a="vue" data-k="${k}" class="${k==='reg'?'reg':''}" ${k==='reg'?'aria-label="Réglages"':''} ${V.vue===k?'aria-current="page"':''}>${l}</button>`).join('');
   syPuce();
   const t=$('.tableau'),sx=t?t.scrollLeft:0,sy=t?t.scrollTop:0;
   const y=window.scrollY;
@@ -1014,7 +1066,7 @@ function vSemaine(){
   let h=alertesCompactes();
   h+=`<div class="barre">
     <button class="btn rond" data-a="sem" data-n="-7" aria-label="Semaine précédente">‹</button>
-    <h2>Semaine ${sem} <span class="sous">${pars(l).getDate()} ${MOIS_C[pars(l).getMonth()]} – ${pars(jours[4]).getDate()} ${MOIS_C[pars(jours[4]).getMonth()]} · ${sem%2?'impaire (SI)':'paire (SP)'}</span></h2>
+    <h2>Semaine ${sem} <span class="sous">${pars(l).getDate()} ${MOIS_C[pars(l).getMonth()]} – ${pars(jours[4]).getDate()} ${MOIS_C[pars(jours[4]).getMonth()]} · ${parite(l)?'impaire (SI)':'paire (SP)'}</span></h2>
     <button class="btn rond" data-a="sem" data-n="7" aria-label="Semaine suivante">›</button>
     ${l!==lundiDefaut()?'<button class="btn" data-a="semauj">Cette semaine</button>':''}
     <button class="btn pousse" data-a="memos">Mémos${nbMemosAFaire()?' ('+nbMemosAFaire()+')':''}</button>
@@ -1180,7 +1232,7 @@ function ligneEvent(e){
 function fenJour(d){
   calcule();
   const evs=P.parJour[d]||[],se=P.items.filter(i=>i.date===d);
-  let h=`<h2>${esc(long(d)[0].toUpperCase()+long(d).slice(1))}</h2><p class="sous">Semaine ${semaineISO(d)} (${semaineISO(d)%2?'impaire':'paire'})</p>`;
+  let h=`<h2>${esc(long(d)[0].toUpperCase()+long(d).slice(1))}</h2><p class="sous">Semaine ${semaineISO(d)} (${parite(d)?'impaire':'paire'})</p>`;
   h+=evs.length?evs.map(ligneEvent).join(''):'<p class="remarque">Aucun événement ce jour.</p>';
   for(const e of evs)if(e.k==='doute'&&d>=auj()&&se.some(i=>i.doute===e))h+=`<p class="remarque att"><b>Le cours est-il maintenu ?</b> ${esc(e.t)}</p><div class="actions" style="justify-content:flex-start;margin-bottom:12px">${boutonsDoute(e)}</div>`;
   if(se.length){
@@ -1438,6 +1490,7 @@ const ACT={
   },
   evvue(b){V.evVue=b.dataset.v;affiche()},
   alertes(){fenAlertes()},
+  notifs(){fenNotifs();affiche(true)},
   memos(){fenMemos()},
   memonew(b){fenMemos(b.dataset.d)},
   memoadd(b){
