@@ -1441,8 +1441,11 @@ function fenActivite(id){
   calcule();
   const it=P.byId.get(id);if(!it)return fermeFen();
   const st=etatS(id);
+  /* Le nom doit être identique pour que la séance compte dans le cycle (et avant son éval) */
+  const autres=[...new Set(P.cycles.filter(c=>c.cl===it.cl&&c.act!==it.act).map(c=>c.act))];
   ouvreFen(`<h2>Modifier l'activité</h2><p class="sous">${esc(CLASSES[it.cl].nom)} — ${esc(long(it.date))}</p>
   <label class="champ">Activité<input id="m-act" list="m-acts" value="${esc(it.act)}" autocomplete="off">${ACTS_LISTE()}</label>
+  ${autres.length?`<div class="cases" style="margin:-4px 0 12px">${autres.map(a=>`<button class="btn" data-a="actchoix" data-v="${esc(a)}">${esc(a)}</button>`).join('')}</div>`:''}
   <label class="champ">Lieu<input id="m-lieu" list="m-lieux" value="${esc(it.lieu)}" autocomplete="off">${LIEUX_LISTE()}</label>
   <div class="actions">${st.act||st.lieu!=null?`<button class="btn" data-a="actreset" data-id="${esc(id)}">Revenir à l'activité prévue</button>`:''}<button class="btn" data-a="ouvre" data-id="${esc(id)}">Annuler</button></div>
   <div class="actions"><button class="btn" data-a="actsave" data-id="${esc(id)}" data-p="1">Cette séance seulement</button>${it.actif?`<button class="btn fort" data-a="actsave" data-id="${esc(id)}" data-p="0">Tout le cycle (${it.total} séances)</button>`:''}</div>`);
@@ -1643,6 +1646,7 @@ const ACT={
     sauve();fermeFen();affiche(true);toast('Activité modifiée.');
   },
   actedit(b){fenActivite(b.dataset.id)},
+  actchoix(b){$('#m-act').value=b.dataset.v},
   actsave(b){
     const id=b.dataset.id,it=P.byId.get(id),nv=$('#m-act').value.trim(),lieu=$('#m-lieu').value.trim();
     if(!nv){toast("Indique le nom de l'activité.");return}
