@@ -588,6 +588,7 @@ try{
   if(b){const o=JSON.parse(b);if(o&&o.v===1)E=migre(o)}
 }catch(e){lectureOK=false}
 function sauve(){
+  E.notifs=rangeNotifs(E.notifs||[]);
   try{localStorage.setItem(CLE,JSON.stringify(E))}
   catch(e){toast("Impossible d'enregistrer sur cet appareil. Fais une sauvegarde depuis les Réglages.")}
   syMarque();
@@ -799,7 +800,8 @@ function notifValide(n){
   return !!n&&typeof n.id==='string'&&n.id.startsWith('n-')&&/^\d{4}-\d\d-\d\d$/.test(n.d||'')&&typeof n.t==='string'&&typeof n.txt==='string';
 }
 const propreNotif=n=>({id:n.id,d:n.d,t:n.t.slice(0,200),txt:n.txt.slice(0,6000),lu:!!n.lu});
-function rangeNotifs(l){return l.sort((a,b)=>a.id<b.id?1:-1).slice(0,40)}
+/* Bilans de 7 jours et plus supprimés ; leur id reste dans E.mVus pour ne pas revenir du dépôt */
+function rangeNotifs(l){const lim=ajoute(auj(),-6);return l.filter(n=>n.d>=lim).sort((a,b)=>a.id<b.id?1:-1).slice(0,40)}
 function syFusion(texte){
   let et={};
   try{et=JSON.parse(texte).etat||{}}catch(e){return}
@@ -1816,6 +1818,7 @@ document.addEventListener('visibilitychange',()=>{
 addEventListener('online',()=>majMeteo());
 setInterval(()=>majMeteo(),15*60*1000);
 
+if((E.notifs||[]).length!==rangeNotifs((E.notifs||[]).slice()).length)migree=true;
 affiche();
 if(migree){migree=false;sauve()}
 setTimeout(syncNow,1000);
