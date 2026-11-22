@@ -86,12 +86,17 @@ main.vue-semaine{padding-bottom:calc(6px + env(safe-area-inset-bottom))}
 .seance.bref .det{font-size:12px;line-height:1.25}
 .seance.bref .contenu{font-size:12.5px;line-height:1.2;margin:0}
 .seance.bref .raison{font-size:12px;line-height:1.2}
-.seance.bref .coche{flex-basis:44px}
-.seance.bref .rond-ck{width:26px;height:26px;font-size:15px}
+.seance.bref .coche{flex-basis:44px;align-items:flex-end;padding-bottom:3px}
+.seance.bref .pret{padding-top:2px;height:20px}
+.seance.bref .pret i{width:13px;height:13px;font-size:10px;line-height:10px}
+.seance.bref .rond-ck{width:24px;height:24px;font-size:14px}
 .seance .cl{font-weight:700;font-size:15.5px}
 .seance .act{font-weight:600}
 .seance .contenu{font-size:14px;margin:1px 0}
 .seance .det{font-size:13px;color:#46525d}
+.seance .pret{position:absolute;top:0;right:0;width:34px;height:26px;padding:4px 5px 0 0;display:flex;justify-content:flex-end;align-items:flex-start;z-index:1}
+.seance .pret i{width:15px;height:15px;border-radius:4px;border:1.5px solid rgba(31,58,77,.32);background:rgba(255,255,255,.55);font-style:normal;font-size:11px;font-weight:800;line-height:12px;text-align:center;color:#fff}
+.seance .pret.ok i{background:#2f855a;border-color:#2f855a}
 .seance .coche{flex:0 0 56px;display:flex;align-items:center;justify-content:center}
 .rond-ck{width:32px;height:32px;border-radius:50%;border:2px solid #65717c;background:#fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;font-weight:700}
 .seance.fait .rond-ck{background:var(--fait);border-color:var(--fait)}
@@ -595,7 +600,7 @@ function syContenu(){
   return JSON.stringify({
     app:'Échéancier Pro',maj:new Date().toISOString(),
     seances:P.items.map(i=>({date:i.date,horaire:i.h,classe:CLASSES[i.cl].nom,activite:i.act,lieu:i.lieu,trimestre:i.tri,
-      seance:i.n||null,total:i.total||null,thematique:i.titre||'',evaluation:!!i.eval,statut:statut(i),
+      seance:i.n||null,total:i.total||null,thematique:i.titre||'',prete:!!etatS(i.id).pr,evaluation:!!i.eval,statut:statut(i),
       raison:i.bloque&&!i.force?i.bloque.t:i.statut==='annule'?i.motif:'',a_confirmer:i.doute&&i.actif?i.doute.t:'',remarque:i.note||''})),
     memos:(E.memos||[]).slice().sort((a,b)=>a.d<b.d?-1:1).map(m=>{const s=m.sid&&P.byId.get(m.sid);return {date:m.d,texte:m.t,fait:!!m.fait,seance:s?CLASSES[s.cl].nom+' — '+s.act+' ('+s.h+')':''}}),
     restantes:P.cycles.filter(c=>c.prochaine).map(c=>({classe:CLASSES[c.cl].nom,activite:c.act,prochaine_evaluation:c.prochaine.date,seances_avant:c.avant,dont_a_confirmer:c.avantDoute})),
@@ -1025,6 +1030,12 @@ function bandeauxAlerte(){
 }
 
 /* ---------- Semaine ---------- */
+/* Petite case « prête » dans l'angle : ce qui reste à préparer se voit d'un coup d'œil */
+function casePrete(it){
+  if(it.statut==='fait')return '';
+  const ok=!!etatS(it.id).pr;
+  return `<button class="pret ${ok?'ok':''}" data-a="pret" data-id="${esc(it.id)}" aria-pressed="${ok}" aria-label="${ok?'Séance prête (retirer)':'Marquer la séance prête'}"><i>${ok?'✓':''}</i></button>`;
+}
 function carte(it){
   const cl=CLASSES[it.cl],bloqueActif=it.bloque&&!it.force,ann=it.statut==='annule';
   const dur=dureeMin(it.h),bref=dur<=COURT_MAX;
@@ -1043,6 +1054,7 @@ function carte(it){
       ${it.doute?`<div class="det a-confirmer">À confirmer : ${esc(it.doute.t)}</div>`:''}
     </button>
     <button class="coche" data-a="coche" data-id="${esc(it.id)}" aria-label="${it.statut==='fait'?'Marquer à faire':'Marquer effectuée'}"><span class="rond-ck">${it.statut==='fait'?'✓':''}</span></button>
+    ${casePrete(it)}
   </div>`;
   return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
@@ -1055,6 +1067,7 @@ function carte(it){
       ${it.doute?`<div class="det a-confirmer">À confirmer : ${esc(it.doute.t)}</div>`:''}
     </button>
     <button class="coche" data-a="coche" data-id="${esc(it.id)}" aria-label="${it.statut==='fait'?'Marquer à faire':'Marquer effectuée'}"><span class="rond-ck">${it.statut==='fait'?'✓':''}</span></button>
+    ${casePrete(it)}
   </div>`;
 }
 function vSemaine(){
@@ -1450,6 +1463,10 @@ const ACT={
   ouvre(b){fenSeance(b.dataset.id)},
   ferme(){fermeFen();affiche(true)},
   fermeVoile(b,ev){if(ev.target===b){fermeFen();affiche(true)}},
+  pret(b){
+    const id=b.dataset.id;
+    majS(id,'pr',!etatS(id).pr);sauve();affiche(true);
+  },
   coche(b){
     const id=b.dataset.id;
     majS(id,'st',etatS(id).st==='fait'?'':'fait');sauve();affiche(true);
