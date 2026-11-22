@@ -270,6 +270,49 @@ td.vide{background:#faf9f6}
 .creneau .l{display:grid;grid-template-columns:30px 1fr 1fr;gap:6px;align-items:center;margin-bottom:5px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom));background:#1d2933;color:#fff;padding:11px 16px;border-radius:12px;z-index:70;display:flex;gap:14px;align-items:center;max-width:calc(100vw - 32px);box-shadow:0 6px 24px rgba(0,0,0,.3)}
 .toast button{color:#ffd76b;font-weight:700;min-height:30px}
+
+/* ---------- Toucher et mouvement (inspiré des principes d'Apple) ----------
+   Courbe « ressort sans rebond » : démarre vite, se pose en douceur. */
+:root{--ressort:cubic-bezier(.2,.9,.25,1)}
+button,a,input,select,label{touch-action:manipulation}
+/* Retour au moment où le doigt se pose, pas quand il se lève */
+.btn,nav button,.seance,.rond-ck,.seance .pret i,.memo-plus,.lien{transition:transform .12s ease-out,background-color .15s,box-shadow .15s}
+.btn:active,nav button:active,.memo-plus:active{transform:scale(.95)}
+.seance:has(.corps:active){transform:scale(.985);box-shadow:0 0 0 rgba(0,0,0,0)}
+.coche:active .rond-ck{transform:scale(.86)}
+.seance .pret:active i{transform:scale(.8)}
+/* Une coche validée « se pose » */
+@keyframes pose{from{transform:scale(.6)}to{transform:scale(1)}}
+.seance.pop .rond-ck,.seance.pop-p .pret i{animation:pose .32s var(--ressort)}
+/* Barre du haut : matière translucide, la semaine défile dessous */
+header{background:rgba(31,58,77,.86);-webkit-backdrop-filter:blur(18px) saturate(170%);backdrop-filter:blur(18px) saturate(170%)}
+nav button[aria-current=page]{box-shadow:0 1px 3px rgba(0,0,0,.18)}
+/* Titres : approche serrée en grand, normale en petit */
+.barre h2,.fen h2{letter-spacing:-.01em}
+.jour h3 .jd{letter-spacing:-.02em}
+/* Fenêtres : naissent de l'endroit touché, repartent par le même chemin */
+@keyframes voile-in{from{background:rgba(15,25,35,0)}}
+@keyframes voile-out{to{background:rgba(15,25,35,0)}}
+@keyframes fen-in{from{opacity:0;transform:scale(.9)}}
+@keyframes fen-out{to{opacity:0;transform:scale(.94)}}
+.voile.entre{animation:voile-in .25s ease-out}
+.voile.entre .fen{animation:fen-in .3s var(--ressort)}
+.voile.part{animation:voile-out .2s ease-in forwards;pointer-events:none}
+.voile.part .fen{animation:fen-out .2s ease-in forwards}
+@keyframes fondu-in{from{opacity:0}}
+@keyframes fondu-out{to{opacity:0}}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,16px)}}
+.toast{animation:toast-in .3s var(--ressort)}
+/* Glisser horizontalement pour changer de semaine ; le défilement vertical reste libre */
+.semaine{touch-action:pan-y}
+main.vue-semaine{overflow-x:hidden;overflow-x:clip}
+@media (prefers-reduced-motion:reduce){
+  .voile.entre .fen{animation:fondu-in .15s ease-out}
+  .voile.part .fen{animation:fondu-out .15s ease-in forwards}
+  .seance.pop .rond-ck,.seance.pop-p .pret i,.toast{animation:none}
+  .btn:active,nav button:active,.seance:has(.corps:active){transform:none}
+}
+@media (prefers-reduced-transparency:reduce){header{background:var(--tete);backdrop-filter:none;-webkit-backdrop-filter:none}}
 </style>
 </head>
 <body>
@@ -624,7 +667,7 @@ async function majMeteo(force){
     j.hourly.time.forEach((t,i)=>{h[t]=[j.hourly.temperature_2m[i],j.hourly.precipitation_probability[i],j.hourly.weather_code[i]]});
     MT={t:Date.now(),h};
     try{localStorage.setItem(CLE_METEO,JSON.stringify(MT))}catch(e){}
-    if(!document.querySelector('.voile')&&V.vue==='semaine')affiche(true);
+    if(!$('#couche .voile')&&V.vue==='semaine')affiche(true);
   }catch(e){}
 }
 const estExterieur=it=>/^ext/i.test((it.lieu||'').trim());
@@ -791,7 +834,7 @@ function syAppliquer(texte){
   if(migree)SY.sale=true;
   migree=avant;
   try{localStorage.setItem(CLE,JSON.stringify(E))}catch(e){}
-  if(!document.querySelector('.voile')&&V.vue!=='reg')affiche(true);
+  if(!$('#couche .voile')&&V.vue!=='reg')affiche(true);
 }
 function syMessage(e){
   if(e&&(e.code===401))return 'Jeton refusé ou expiré : déconnecte puis entre un nouveau jeton.';
@@ -811,7 +854,7 @@ async function syncNow(){
         const nb=E.events.length;
         syFusion(dist.texte);
         toast(E.events.length>nb?'Nouveaux événements reçus de la tâche du samedi : ils ont été ajoutés au calendrier.':'Le fichier en ligne avait changé : cet appareil le remplace (l’ancienne version reste dans l’historique GitHub).');
-        if(E.events.length>nb&&!document.querySelector('.voile')&&V.vue!=='reg')affiche(true);
+        if(E.events.length>nb&&!$('#couche .voile')&&V.vue!=='reg')affiche(true);
       }
       const g=syGen;
       try{SY.sha=await ghEcrire(syContenu(),dist&&dist.sha)}
@@ -1045,7 +1088,8 @@ function carte(it){
       ${bref?`<div class="cl">${esc(titreBref)}</div>`:`<div class="cl">${esc(cl.nom)}</div><div class="act">${esc(it.act)}</div>`}
       <div class="raison">${bloqueActif?esc(it.bloque.t):'Séance annulée'+(it.motif?' : '+esc(it.motif):'')}</div></button></div>`;
   }
-  if(bref)return `<div class="seance bref ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
+  const pop=V.pop&&V.pop.id===it.id?V.pop.k:'';
+  if(bref)return `<div class="seance bref ${pop} ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
       <div class="cl">${esc(titreBref)}</div>
       <div class="det">${esc(it.h)} · S${it.n}/${it.total}${it.lieu?' · '+esc(it.lieu):''}${it.note?' · 📝':''}${badgeMemos(it)}</div>
@@ -1056,7 +1100,7 @@ function carte(it){
     <button class="coche" data-a="coche" data-id="${esc(it.id)}" aria-label="${it.statut==='fait'?'Marquer à faire':'Marquer effectuée'}"><span class="rond-ck">${it.statut==='fait'?'✓':''}</span></button>
     ${casePrete(it)}
   </div>`;
-  return `<div class="seance ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
+  return `<div class="seance ${pop} ${it.statut==='fait'?'fait':''} ${it.retard?'retard':''}" style="--c:${cl.c};--dur:${dur}">
     <button class="corps" data-a="ouvre" data-id="${esc(it.id)}">
       <div class="cl">${esc(cl.nom)} ${it.eval?'<span class="tag-eval">EVAL</span>':''}</div>
       <div class="act">${esc(it.act)} · S${it.n}/${it.total} <span class="tag-t t${it.tri}">T${it.tri}</span></div>
@@ -1294,8 +1338,34 @@ function vReg(){
 }
 
 /* ---------- Fenêtres ---------- */
-function ouvreFen(html){$('#couche').innerHTML=`<div class="voile" data-a="fermeVoile"><div class="fen" role="dialog" aria-modal="true">${html}</div></div>`}
-function fermeFen(){$('#couche').innerHTML=''}
+/* Dernier point touché : la fenêtre grandit depuis là */
+let dernierPt=null;
+addEventListener('pointerdown',e=>{dernierPt={x:e.clientX,y:e.clientY}},true);
+addEventListener('touchstart',()=>{},{passive:true}); /* active :active sur iPad */
+function ouvreFen(html){
+  const f=document.querySelector('#couche .voile:not(.part) .fen');
+  if(f){f.innerHTML=html;return} /* déjà ouverte : on change le contenu sans rejouer l'entrée */
+  $('#couche').innerHTML=`<div class="voile entre" data-a="fermeVoile"><div class="fen" role="dialog" aria-modal="true">${html}</div></div>`;
+  const v=$('#couche .voile'),fen=v.querySelector('.fen');
+  if(dernierPt){
+    const r=fen.getBoundingClientRect();
+    const ox=Math.max(0,Math.min(r.width,dernierPt.x-r.left)),oy=Math.max(0,Math.min(r.height,dernierPt.y-r.top));
+    fen.style.transformOrigin=ox+'px '+oy+'px';
+  }
+  v.addEventListener('animationend',()=>v.classList.remove('entre'),{once:true});
+}
+function fermeFen(){
+  const v=document.querySelector('#couche .voile');
+  $('#couche').innerHTML='';
+  if(!v)return;
+  /* La fenêtre sort par où elle est entrée, dans une couche à part : l'app reste utilisable */
+  v.classList.remove('entre');v.classList.add('part');v.removeAttribute('data-a');
+  v.querySelectorAll('[data-a]').forEach(x=>x.removeAttribute('data-a'));
+  v.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
+  v.inert=true;
+  document.body.appendChild(v);
+  setTimeout(()=>v.remove(),260);
+}
 function fenSeance(id){
   calcule();
   const it=P.byId.get(id);if(!it)return fermeFen();
@@ -1452,8 +1522,8 @@ function importe(file){
 /* ---------- Actions ---------- */
 const ACT={
   vue(b){V.vue=b.dataset.k;fermeFen();affiche()},
-  sem(b){V.lundi=ajoute(V.lundi,+b.dataset.n);affiche()},
-  semauj(){V.lundi=lundiDefaut();affiche()},
+  sem(b){changeSemaine(ajoute(V.lundi,+b.dataset.n))},
+  semauj(){changeSemaine(lundiDefaut())},
   tri(b){V.tri=+b.dataset.n;affiche()},
   evpass(){V.evPassees=!V.evPassees;affiche(true)},
   calm(b){V.calMois=moisDecale(V.calMois,+b.dataset.n);affiche()},
@@ -1465,11 +1535,13 @@ const ACT={
   fermeVoile(b,ev){if(ev.target===b){fermeFen();affiche(true)}},
   pret(b){
     const id=b.dataset.id;
-    majS(id,'pr',!etatS(id).pr);sauve();affiche(true);
+    majS(id,'pr',!etatS(id).pr);sauve();
+    V.pop={id,k:'pop-p'};affiche(true);V.pop=null;
   },
   coche(b){
     const id=b.dataset.id;
-    majS(id,'st',etatS(id).st==='fait'?'':'fait');sauve();affiche(true);
+    majS(id,'st',etatS(id).st==='fait'?'':'fait');sauve();
+    V.pop={id,k:'pop'};affiche(true);V.pop=null;
   },
   st(b){
     const id=b.dataset.id,v=b.dataset.v;
@@ -1523,7 +1595,7 @@ const ACT={
   memodel(b){
     E.memos=(E.memos||[]).filter(m=>m.id!==b.dataset.id);sauve();
     if(document.querySelector('.liste-memos'))fenMemos();
-    else{const s=document.querySelector('.fen [data-a=memoadd][data-sid]');if(s)fenSeance(s.dataset.sid)}
+    else{const s=$('#couche .fen [data-a=memoadd][data-sid]');if(s)fenSeance(s.dataset.sid)}
     affiche(true);
   },
   memopurge(){
@@ -1533,10 +1605,10 @@ const ACT={
   doutes(){fenDoutes()},
   repond(b){
     const e=E.events.find(x=>x.id===b.dataset.id);if(!e)return;
-    const liste=!!document.querySelector('.question'),ouvert=document.querySelector('.fen');
+    const liste=!!$('#couche .question'),ouvert=$('#couche .fen');
     e.k=b.dataset.v==='oui'?'info':'stop';e.v=false;
     sauve();
-    const dansAlertes=!!document.querySelector('.alertes-fen');
+    const dansAlertes=!!$('#couche .alertes-fen');
     if(liste)fenDoutes();else if(ouvert&&!dansAlertes)fermeFen();
     affiche(true);
     if(dansAlertes)fenAlertes();
@@ -1548,7 +1620,7 @@ const ACT={
     if(!confirm('Marquer '+l.length+' séance(s) passée(s) comme effectuée(s) ?'))return;
     const avant=JSON.stringify(E.s);
     l.forEach(i=>majS(i.id,'st','fait'));sauve();affiche(true);
-    if(document.querySelector('.alertes-fen'))fenAlertes();
+    if($('#couche .alertes-fen'))fenAlertes();
     toast(l.length+' séances marquées effectuées.','Annuler',()=>{E.s=JSON.parse(avant);sauve();affiche(true)});
   },
   ajout(b){fenAjout(b.dataset.date)},
@@ -1637,6 +1709,78 @@ document.addEventListener('click',ev=>{
   const fn=ACT[b.dataset.a];
   if(fn)fn(b,ev);
 });
+/* ---------- Glisser pour changer de semaine ----------
+   La semaine suit le doigt 1:1. Au lâcher, l'élan est prolongé (comme un défilement)
+   pour décider : semaine voisine, ou retour en place. On peut la rattraper en vol. */
+const mvtReduit=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+const projette=(v,d=.998)=>(v/1000)*d/(1-d);
+const posX=el=>{const t=getComputedStyle(el).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
+let gl=null,clicBloqueJusqua=0,sortieEnCours=false;
+function ressortVers0(s){
+  s.style.transition='transform .38s var(--ressort),opacity .25s ease-out';
+  s.style.transform='translateX(0)';s.style.opacity='';
+  s.addEventListener('transitionend',function f(e){if(e.propertyName!=='transform'||gl&&gl.s===s)return;s.removeEventListener('transitionend',f);s.style.transition='';s.style.transform=''});
+}
+function changeSemaine(lundiCible,vitesse=0){
+  if(lundiCible===V.lundi){const s=$('.semaine');if(s)ressortVers0(s);return}
+  const dir=lundiCible>V.lundi?1:-1,s=$('.semaine');
+  if(!s||mvtReduit()){V.lundi=lundiCible;affiche();return}
+  const w=s.offsetWidth,x=posX(s),cible=-dir*w*.45;
+  /* La sortie garde la vitesse du doigt : plus le geste est rapide, plus elle est brève */
+  const d=Math.round(Math.max(90,Math.min(200,Math.abs(cible-x)/Math.max(Math.abs(vitesse),1400)*1000)));
+  sortieEnCours=true;
+  s.style.transition=`transform ${d}ms cubic-bezier(.4,0,1,1),opacity ${d}ms ease-in`;
+  s.style.transform=`translateX(${cible}px)`;s.style.opacity='0';
+  setTimeout(()=>{
+    sortieEnCours=false;V.lundi=lundiCible;affiche();
+    const n=$('.semaine');if(!n)return;
+    /* La nouvelle semaine arrive du côté opposé, sur le même axe */
+    n.style.transition='none';n.style.transform=`translateX(${dir*w*.22}px)`;n.style.opacity='0';
+    n.offsetWidth;
+    n.style.transition='transform .36s var(--ressort),opacity .22s ease-out';
+    n.style.transform='translateX(0)';n.style.opacity='1';
+    setTimeout(()=>{if(!(gl&&gl.s===n)){n.style.transition='';n.style.transform='';n.style.opacity=''}},400);
+  },d);
+}
+document.addEventListener('pointerdown',e=>{
+  if(V.vue!=='semaine'||!e.isPrimary||e.button>0||sortieEnCours||$('#couche .voile'))return;
+  const s=e.target.closest('.semaine');if(!s)return;
+  const base=posX(s); /* rattrapée en vol : on repart de là où elle est à l'écran */
+  if(base){s.style.transition='none';s.style.transform=`translateX(${base}px)`}
+  gl={s,id:e.pointerId,x0:e.clientX,y0:e.clientY,base,sens:null,decal:0,hist:[{x:e.clientX,t:e.timeStamp}]};
+});
+document.addEventListener('pointermove',e=>{
+  if(!gl||e.pointerId!==gl.id)return;
+  const dx=e.clientX-gl.x0,dy=e.clientY-gl.y0;
+  if(!gl.sens){
+    if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.2){
+      gl.sens='h';gl.decal=dx>0?10:-10;gl.s.style.transition='none';
+      try{gl.s.setPointerCapture(e.pointerId)}catch(_){}
+    }else if(Math.abs(dy)>10){if(gl.base)ressortVers0(gl.s);gl=null;return}
+    else return;
+  }
+  gl.hist.push({x:e.clientX,t:e.timeStamp});
+  while(gl.hist.length>2&&e.timeStamp-gl.hist[0].t>100)gl.hist.shift();
+  const x=gl.base+dx-gl.decal,w=gl.s.offsetWidth||1;
+  gl.s.style.transform=`translateX(${x}px)`;
+  gl.s.style.opacity=String(1-Math.min(.4,Math.abs(x)/w*.6));
+});
+function finGlisse(e){
+  if(!gl||e.pointerId!==gl.id)return;
+  const g=gl;gl=null;
+  if(g.sens!=='h'){if(g.base)ressortVers0(g.s);return}
+  clicBloqueJusqua=performance.now()+500; /* un glisser n'ouvre pas la séance touchée */
+  const h=g.hist,a=h[0],b=h[h.length-1];
+  const v=b.t>a.t?(b.x-a.x)/(b.t-a.t)*1000:0; /* px/s */
+  const x=posX(g.s),w=g.s.offsetWidth,fin=x+projette(v);
+  if(e.type==='pointerup'&&Math.abs(fin)>w*.3&&Math.sign(fin)===Math.sign(x))changeSemaine(ajoute(V.lundi,fin<0?7:-7),v);
+  else ressortVers0(g.s);
+}
+document.addEventListener('pointerup',finGlisse);
+document.addEventListener('pointercancel',finGlisse);
+document.addEventListener('click',ev=>{
+  if(performance.now()<clicBloqueJusqua){ev.stopPropagation();ev.preventDefault();clicBloqueJusqua=0}
+},true);
 document.addEventListener('input',ev=>{
   const t=ev.target;
   if(t.dataset.c==='note'){majS(t.dataset.id,'n',t.value);sauve()}
@@ -1647,7 +1791,7 @@ document.addEventListener('change',ev=>{
   if(t.id==='imp'&&t.files[0]){importe(t.files[0]);return}
   if(c==='memo'){
     const m=(E.memos||[]).find(x=>x.id===t.dataset.id);
-    if(m){m.fait=t.checked;sauve();if(!document.querySelector('.voile'))affiche(true);else if(document.querySelector('.liste-memos'))fenMemos()}
+    if(m){m.fait=t.checked;sauve();if(!$('#couche .voile'))affiche(true);else if($('#couche .liste-memos'))fenMemos()}
     return;
   }
   if(c==='tri'&&t.value){E.tri[t.dataset.n][+t.dataset.i]=t.value;sauve()}
