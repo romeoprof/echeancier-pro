@@ -1344,23 +1344,20 @@ addEventListener('pointerdown',e=>{dernierPt={x:e.clientX,y:e.clientY}},true);
 addEventListener('touchstart',()=>{},{passive:true}); /* active :active sur iPad */
 function ouvreFen(html){
   const f=document.querySelector('#couche .voile:not(.part) .fen');
-  if(f){f.innerHTML=html;return} /* déjà ouverte : on change le contenu sans rejouer l'entrée */
+  if(f){f.innerHTML=html;f.scrollTop=0;return} /* déjà ouverte : on change le contenu sans rejouer l'entrée */
   $('#couche').innerHTML=`<div class="voile entre" data-a="fermeVoile"><div class="fen" role="dialog" aria-modal="true">${html}</div></div>`;
   const v=$('#couche .voile'),fen=v.querySelector('.fen');
   if(dernierPt){
     const r=fen.getBoundingClientRect();
     const ox=Math.max(0,Math.min(r.width,dernierPt.x-r.left)),oy=Math.max(0,Math.min(r.height,dernierPt.y-r.top));
     fen.style.transformOrigin=ox+'px '+oy+'px';
-  }
-  v.addEventListener('animationend',()=>v.classList.remove('entre'),{once:true});
-}
+  }}
 function fermeFen(){
   const v=document.querySelector('#couche .voile');
   $('#couche').innerHTML='';
   if(!v)return;
   /* La fenêtre sort par où elle est entrée, dans une couche à part : l'app reste utilisable */
-  v.classList.remove('entre');v.classList.add('part');v.removeAttribute('data-a');
-  v.querySelectorAll('[data-a]').forEach(x=>x.removeAttribute('data-a'));
+  v.classList.remove('entre');v.classList.add('part');
   v.querySelectorAll('[id]').forEach(x=>x.removeAttribute('id'));
   v.inert=true;
   document.body.appendChild(v);
@@ -1522,7 +1519,7 @@ function importe(file){
 /* ---------- Actions ---------- */
 const ACT={
   vue(b){V.vue=b.dataset.k;fermeFen();affiche()},
-  sem(b){changeSemaine(ajoute(V.lundi,+b.dataset.n))},
+  sem(b){changeSemaine(ajoute(cibleSortie||V.lundi,+b.dataset.n))},
   semauj(){changeSemaine(lundiDefaut())},
   tri(b){V.tri=+b.dataset.n;affiche()},
   evpass(){V.evPassees=!V.evPassees;affiche(true)},
@@ -1715,24 +1712,25 @@ document.addEventListener('click',ev=>{
 const mvtReduit=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
 const projette=(v,d=.998)=>(v/1000)*d/(1-d);
 const posX=el=>{const t=getComputedStyle(el).transform;return t&&t!=='none'?new DOMMatrix(t).m41:0};
-let gl=null,clicBloqueJusqua=0,sortieEnCours=false;
+let gl=null,clicBloqueJusqua=0,cibleSortie=null;
 function ressortVers0(s){
   s.style.transition='transform .38s var(--ressort),opacity .25s ease-out';
   s.style.transform='translateX(0)';s.style.opacity='';
   s.addEventListener('transitionend',function f(e){if(e.propertyName!=='transform'||gl&&gl.s===s)return;s.removeEventListener('transitionend',f);s.style.transition='';s.style.transform=''});
 }
 function changeSemaine(lundiCible,vitesse=0){
+  if(cibleSortie){cibleSortie=lundiCible;return} /* appui pendant la sortie : on vise plus loin */
   if(lundiCible===V.lundi){const s=$('.semaine');if(s)ressortVers0(s);return}
   const dir=lundiCible>V.lundi?1:-1,s=$('.semaine');
   if(!s||mvtReduit()){V.lundi=lundiCible;affiche();return}
   const w=s.offsetWidth,x=posX(s),cible=-dir*w*.45;
   /* La sortie garde la vitesse du doigt : plus le geste est rapide, plus elle est brève */
   const d=Math.round(Math.max(90,Math.min(200,Math.abs(cible-x)/Math.max(Math.abs(vitesse),1400)*1000)));
-  sortieEnCours=true;
+  cibleSortie=lundiCible;
   s.style.transition=`transform ${d}ms cubic-bezier(.4,0,1,1),opacity ${d}ms ease-in`;
   s.style.transform=`translateX(${cible}px)`;s.style.opacity='0';
   setTimeout(()=>{
-    sortieEnCours=false;V.lundi=lundiCible;affiche();
+    V.lundi=cibleSortie;cibleSortie=null;affiche();
     const n=$('.semaine');if(!n)return;
     /* La nouvelle semaine arrive du côté opposé, sur le même axe */
     n.style.transition='none';n.style.transform=`translateX(${dir*w*.22}px)`;n.style.opacity='0';
@@ -1743,7 +1741,8 @@ function changeSemaine(lundiCible,vitesse=0){
   },d);
 }
 document.addEventListener('pointerdown',e=>{
-  if(V.vue!=='semaine'||!e.isPrimary||e.button>0||sortieEnCours||$('#couche .voile'))return;
+  clicBloqueJusqua=0; /* le clic d'un glisser arrive toujours avant le geste suivant */
+  if(V.vue!=='semaine'||!e.isPrimary||e.button>0||cibleSortie||$('#couche .voile'))return;
   const s=e.target.closest('.semaine');if(!s)return;
   const base=posX(s); /* rattrapée en vol : on repart de là où elle est à l'écran */
   if(base){s.style.transition='none';s.style.transform=`translateX(${base}px)`}
